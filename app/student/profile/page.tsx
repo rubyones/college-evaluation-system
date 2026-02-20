@@ -81,7 +81,7 @@ export default function StudentProfile() {
       </div>
 
       {profileSaved && (
-        <Alert type="success" title="Success">
+        <Alert variant="success" title="Success">
           Profile updated successfully!
         </Alert>
       )}
@@ -205,7 +205,7 @@ export default function StudentProfile() {
         </CardHeader>
         <CardContent className="space-y-4">
           {preferenceSaved && (
-            <Alert type="success" title="Saved">
+            <Alert variant="success" title="Saved">
               Your preferences have been updated!
             </Alert>
           )}

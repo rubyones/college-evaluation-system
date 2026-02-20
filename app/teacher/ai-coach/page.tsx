@@ -369,7 +369,7 @@ export default function AICoach() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <Alert type="info">
+            <Alert variant="info">
               Focus on completing the high-priority items: implement peer review activities and create detailed grading rubrics. These changes can significantly improve student satisfaction.
             </Alert>
             <div className="flex flex-wrap gap-3">
