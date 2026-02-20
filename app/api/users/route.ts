@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { queryOne } from '@/lib/db';
+import { query, queryOne } from '@/lib/db';
 
 let jwt: any = null;
 
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     // Get user from database
     const user: any = await queryOne(
-      'SELECT id, email, first_name, last_name, role, jmc_id FROM users WHERE id = ?',
+      'SELECT id, name, email, role FROM users WHERE id = ?',
       [decoded.userId]
     );
 
@@ -63,10 +63,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       user: {
         id: user.id,
-        name: `${user.first_name} ${user.last_name}`,
+        name: user.name,
         email: user.email,
         role: user.role,
-        jmcId: user.jmc_id,
       },
     });
   } catch (error) {
@@ -97,11 +96,18 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { firstName, lastName } = body;
+    const { name } = body;
+
+    if (!name) {
+      return NextResponse.json(
+        { error: 'Name is required' },
+        { status: 400 }
+      );
+    }
 
     // Get current user from database
     const user: any = await queryOne(
-      'SELECT id, email, first_name, last_name, role FROM users WHERE id = ?',
+      'SELECT id, name, email, role FROM users WHERE id = ?',
       [decoded.userId]
     );
 
@@ -112,12 +118,18 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Return updated user (demo mode - not persisting)
+    // Update user name
+    await query(
+      'UPDATE users SET name = ? WHERE id = ?',
+      [name, decoded.userId]
+    );
+
+    // Return updated user
     return NextResponse.json({
       success: true,
       user: {
         id: user.id,
-        name: `${firstName || user.first_name} ${lastName || user.last_name}`,
+        name: name,
         email: user.email,
         role: user.role,
       },

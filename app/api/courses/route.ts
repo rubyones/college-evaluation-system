@@ -53,37 +53,48 @@ export async function GET(request: NextRequest) {
     if (decoded.role === 'teacher') {
       // Teachers see their own courses
       courses = await query(
-        `SELECT c.id, c.course_code, c.course_name, c.semester, c.year,
-                COUNT(ce.id) as student_count
+        `SELECT c.id, c.name, c.code, c.semester, c.credits, c.description,
+                COUNT(e.id) as student_count
          FROM courses c
-         LEFT JOIN course_enrollments ce ON c.id = ce.course_id
-         WHERE c.teacher_id = ?
+         LEFT JOIN enrollments e ON c.id = e.course_id
+         WHERE c.instructor_id = ?
          GROUP BY c.id`,
         [decoded.userId]
       );
-    } else {
+    } else if (decoded.role === 'student') {
       // Students see their enrolled courses
       courses = await query(
-        `SELECT c.id, c.course_code, c.course_name, c.semester, c.year,
-                COUNT(ce.id) as student_count,
-                u.first_name, u.last_name
+        `SELECT c.id, c.name, c.code, c.semester, c.credits, c.description,
+                u.name as instructor_name
          FROM courses c
-         INNER JOIN course_enrollments ce ON c.id = ce.course_id
-         LEFT JOIN users u ON c.teacher_id = u.id
-         WHERE ce.user_id = ?
+         INNER JOIN enrollments e ON c.id = e.course_id
+         LEFT JOIN users u ON c.instructor_id = u.id
+         WHERE e.student_id = ?
          GROUP BY c.id`,
         [decoded.userId]
+      );
+    } else if (decoded.role === 'dean') {
+      // Dean sees all courses
+      courses = await query(
+        `SELECT c.id, c.name, c.code, c.semester, c.credits, c.description,
+                u.name as instructor_name,
+                COUNT(e.id) as student_count
+         FROM courses c
+         LEFT JOIN users u ON c.instructor_id = u.id
+         LEFT JOIN enrollments e ON c.id = e.course_id
+         GROUP BY c.id`
       );
     }
 
     // Format response
     const formattedCourses = (courses || []).map((c: any) => ({
       id: c.id,
-      course_code: c.course_code,
-      course_name: c.course_name,
-      teacher_name: c.first_name && c.last_name ? `${c.first_name} ${c.last_name}` : 'Unknown',
+      code: c.code,
+      name: c.name,
+      instructor_name: c.instructor_name || 'Unknown',
       semester: c.semester,
-      year: c.year,
+      credits: c.credits,
+      description: c.description,
       student_count: c.student_count || 0,
     }));
 

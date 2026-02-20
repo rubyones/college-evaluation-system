@@ -53,69 +53,69 @@ export async function GET(request: NextRequest) {
     if (decoded.role === 'student') {
       // Student analytics
       const enrolledCoursesResult: any = await query(
-        'SELECT COUNT(*) as count FROM course_enrollments WHERE user_id = ?',
+        'SELECT COUNT(*) as count FROM enrollments WHERE student_id = ?',
         [decoded.userId]
       );
       const enrolledCourses = enrolledCoursesResult[0]?.count || 0;
 
       const evaluationsResult: any = await query(
-        'SELECT COUNT(*) as count FROM evaluations WHERE user_id = ?',
+        'SELECT COUNT(*) as count FROM evaluations WHERE evaluator_id = ?',
         [decoded.userId]
       );
       const totalEvaluations = evaluationsResult[0]?.count || 0;
 
-      const completedResult: any = await query(
-        'SELECT COUNT(*) as count FROM evaluations WHERE user_id = ? AND status = "completed"',
+      const submittedResult: any = await query(
+        'SELECT COUNT(*) as count FROM evaluations WHERE evaluator_id = ? AND status = "submitted"',
         [decoded.userId]
       );
-      const completedEvaluations = completedResult[0]?.count || 0;
+      const submittedEvaluations = submittedResult[0]?.count || 0;
 
       const completionRate = totalEvaluations > 0 
-        ? Math.round((completedEvaluations / totalEvaluations) * 100 * 10) / 10 
+        ? Math.round((submittedEvaluations / totalEvaluations) * 100 * 10) / 10 
         : 0;
 
       analytics = {
         enrolledCourses,
         totalEvaluations,
-        completedEvaluations,
-        pendingEvaluations: totalEvaluations - completedEvaluations,
+        submittedEvaluations,
+        pendingEvaluations: totalEvaluations - submittedEvaluations,
         completionRate,
       };
     } else if (decoded.role === 'teacher') {
       // Teacher analytics
       const classesResult: any = await query(
-        'SELECT COUNT(*) as count FROM courses WHERE teacher_id = ?',
+        'SELECT COUNT(*) as count FROM courses WHERE instructor_id = ?',
         [decoded.userId]
       );
       const classesTaught = classesResult[0]?.count || 0;
 
       const studentsResult: any = await query(
-        'SELECT COUNT(DISTINCT ce.user_id) as count FROM courses c INNER JOIN course_enrollments ce ON c.id = ce.course_id WHERE c.teacher_id = ?',
+        'SELECT COUNT(DISTINCT e.student_id) as count FROM courses c INNER JOIN enrollments e ON c.id = e.course_id WHERE c.instructor_id = ?',
         [decoded.userId]
       );
       const totalStudents = studentsResult[0]?.count || 0;
 
       const evaluationsCreatedResult: any = await query(
-        'SELECT COUNT(*) as count FROM evaluations e INNER JOIN courses c ON e.course_id = c.id WHERE c.teacher_id = ?',
+        'SELECT COUNT(*) as count FROM evaluations e INNER JOIN courses c ON e.course_id = c.id WHERE c.instructor_id = ? AND e.evaluation_type = "teacher"',
         [decoded.userId]
       );
       const evaluationsCreated = evaluationsCreatedResult[0]?.count || 0;
 
-      const evaluationsCompletedResult: any = await query(
-        'SELECT COUNT(*) as count FROM evaluations e INNER JOIN courses c ON e.course_id = c.id WHERE c.teacher_id = ? AND e.status = "completed"',
+      const evaluationsSubmittedResult: any = await query(
+        'SELECT COUNT(*) as count FROM evaluations e INNER JOIN courses c ON e.course_id = c.id WHERE c.instructor_id = ? AND e.status = "submitted"',
         [decoded.userId]
       );
-      const evaluationsCompleted = evaluationsCompletedResult[0]?.count || 0;
+      const evaluationsSubmitted = evaluationsSubmittedResult[0]?.count || 0;
 
       const evaluationRate = evaluationsCreated > 0 
-        ? Math.round((evaluationsCompleted / evaluationsCreated) * 100 * 10) / 10 
+        ? Math.round((evaluationsSubmitted / evaluationsCreated) * 100 * 10) / 10 
         : 0;
 
       analytics = {
         classesTaught,
         totalStudents,
         evaluationsCreated,
-        evaluationsCompleted,
+        evaluationsSubmitted,
         evaluationRate,
       };
     } else if (decoded.role === 'dean' || decoded.role === 'admin') {
@@ -129,18 +129,18 @@ export async function GET(request: NextRequest) {
       const totalEvaluationsResult: any = await query('SELECT COUNT(*) as count FROM evaluations');
       const totalEvaluations = totalEvaluationsResult[0]?.count || 0;
 
-      const completedEvaluationsResult: any = await query('SELECT COUNT(*) as count FROM evaluations WHERE status = "completed"');
-      const completedEvaluations = completedEvaluationsResult[0]?.count || 0;
+      const submittedEvaluationsResult: any = await query('SELECT COUNT(*) as count FROM evaluations WHERE status = "submitted"');
+      const submittedEvaluations = submittedEvaluationsResult[0]?.count || 0;
 
       const evaluationRate = totalEvaluations > 0 
-        ? Math.round((completedEvaluations / totalEvaluations) * 100 * 10) / 10 
+        ? Math.round((submittedEvaluations / totalEvaluations) * 100 * 10) / 10 
         : 0;
 
       analytics = {
         totalUsers,
         totalCourses,
         totalEvaluations,
-        completedEvaluations,
+        submittedEvaluations,
         evaluationRate,
       };
     }
@@ -153,6 +153,7 @@ export async function GET(request: NextRequest) {
     console.error('Get analytics error:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: String(error) },
+      { status: 500 }
     );
   }
 }
