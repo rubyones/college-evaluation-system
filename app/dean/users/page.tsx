@@ -82,7 +82,7 @@ export default function Users() {
       alert('User updated successfully!');
     } else {
       const id = `user-${Date.now()}`;
-      setUsers((prev) => [{ id, name: form.name, email: form.email, role: form.role, ...form } as any, ...prev]);
+      setUsers((prev) => [{ id, ...form } as any, ...prev]);
       alert('User created successfully!');
     }
 
