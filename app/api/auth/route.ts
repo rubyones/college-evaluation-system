@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
+import { v4 as uuidv4 } from 'uuid';
 
 let jwt: any = null;
 
@@ -94,69 +95,6 @@ async function handleEmailLogin(
     const user = users[0];
     const token = await generateToken(user.id, user.role);
     
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        token
-      }
-    });
-          success: true,
-          user: { id: acct.id, name: acct.name, email, role: acct.role },
-          token: demoToken,
-          message: 'Demo login',
-        });
-      }
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
-    }
-
-    // Query database for user
-    const user: any = await queryOne(
-      'SELECT id, email, first_name, last_name, role FROM users WHERE email = ? AND is_active = 1',
-      [email]
-    );
-
-    if (!user) {
-      // Demo fallback - allow demo login with any @jmc.edu.ph email
-      if (password === 'demo') {
-        const nameParts = email.split('@')[0].split('.');
-        const firstName = nameParts[0]?.charAt(0).toUpperCase() + nameParts[0]?.slice(1) || 'User';
-        const lastName = nameParts[1]?.charAt(0).toUpperCase() + nameParts[1]?.slice(1) || 'Account';
-        const demoToken = await generateToken(999, 'student');
-        
-        return NextResponse.json({
-          success: true,
-          user: {
-            id: 999,
-            name: `${firstName} ${lastName}`,
-            email: email,
-            role: 'student',
-          },
-          token: demoToken,
-          message: 'Demo login - data not persisted',
-        });
-      }
-
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
-
-    // TODO: Implement actual password hashing verification
-    // For now, accept "demo" as password for database users too
-    if (password !== 'demo') {
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
-
-    // Generate token with real user data
-    const token = await generateToken(user.id, user.role);
-
     // Log login to audit
     await query(
       'INSERT INTO audit_logs (user_id, action, description, ip_address, user_agent, status) VALUES (?, ?, ?, ?, ?, ?)',
@@ -173,7 +111,7 @@ async function handleEmailLogin(
       success: true,
       user: {
         id: user.id,
-        name: `${user.first_name} ${user.last_name}`,
+        name: user.name,
         email: user.email,
         role: user.role,
       },
@@ -256,10 +194,10 @@ async function handleSignup(
     }
 
     // Validate role
-    if (role === 'dean') {
+    if (!['student', 'teacher'].includes(role)) {
       return NextResponse.json(
-        { error: 'Dean accounts cannot be created through signup' },
-        { status: 403 }
+        { error: 'Invalid role. Must be "student" or "teacher"' },
+        { status: 400 }
       );
     }
 
@@ -271,10 +209,48 @@ async function handleSignup(
       );
     }
 
-    // Demo mode - accept signup
+    // Check if email already exists
+    const existingUser: any = await queryOne(
+      'SELECT id FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'Email already registered' },
+        { status: 409 }
+      );
+    }
+
+    // Create user ID and full name
+    const userId = uuidv4();
+    const fullName = `${firstName} ${lastName}`;
+
+    // Insert user into database
+    await query(
+      'INSERT INTO users (id, name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?, 1)',
+      [userId, fullName, email, password, role]
+    );
+
+    // Log signup to audit
+    await query(
+      'INSERT INTO audit_logs (user_id, action, description, ip_address, user_agent, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [userId, 'SIGNUP', `User signed up as ${role}`, clientIp, userAgent, 'success']
+    );
+
+    // Generate token for auto-login
+    const token = await generateToken(userId, role);
+
     return NextResponse.json({
       success: true,
-      message: 'Account created successfully. Please check your email to verify your account.',
+      message: 'Account created successfully!',
+      user: {
+        id: userId,
+        name: fullName,
+        email: email,
+        role: role,
+      },
+      token: token,
     });
   } catch (error) {
     console.error('Signup error:', error);

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -15,6 +16,7 @@ function SignUpContent() {
   const searchParams = useSearchParams();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const { setToken, setUserFromApi } = useAuth();
 
   const roleParam = searchParams.get('role') || 'student';
   const [role, setRole] = useState<'student' | 'teacher'>(roleParam as 'student' | 'teacher');
@@ -105,11 +107,26 @@ function SignUpContent() {
         throw new Error(data.error || 'Sign-up failed');
       }
 
-      setSuccessMessage(`Welcome, ${formData.firstName}! Your account as a ${role} has been created. Redirecting to login...`);
+      // Auto-login if token is provided
+      if (data.token && data.user) {
+        // Update auth context and session storage
+        if (typeof setToken === 'function') setToken(data.token);
+        if (typeof setUserFromApi === 'function') setUserFromApi(data.user);
 
-      setTimeout(() => {
-        router.push('/login');
-      }, 2500);
+        setSuccessMessage(`Welcome, ${data.user.name}! Your ${role} account has been created. Redirecting to dashboard...`);
+
+        setTimeout(() => {
+          // Redirect based on role
+          const redirectUrl = role === 'teacher' ? '/teacher/dashboard' : '/student/dashboard';
+          router.push(redirectUrl);
+        }, 1500);
+      } else {
+        setSuccessMessage(`Welcome, ${formData.firstName}! Your account as a ${role} has been created. Redirecting to login...`);
+
+        setTimeout(() => {
+          router.push('/login');
+        }, 2500);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-up failed. Please try again.');
     } finally {
