@@ -1,0 +1,419 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
+import { DataTable } from '@/components/DataTable';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { mockUsers } from '@/data/mock';
+import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
+import { Checkbox } from '@/components/ui/Checkbox';
+import type { User } from '@/types';
+import { Search, Plus, Trash2, Edit2, Download, Upload } from 'lucide-react';
+
+const STORAGE_KEY = 'admin-users';
+
+function loadInitialUsers(): User[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as User[];
+  } catch (e) {
+    // ignore
+  }
+  return Object.values(mockUsers).map((u) => ({ ...u }));
+}
+
+export default function Users() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [form, setForm] = useState({ name: '', email: '', role: 'student' as User['role'], department: '' });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+
+  useEffect(() => {
+    const initial = loadInitialUsers();
+    setUsers(initial);
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+    } catch (e) {
+      // ignore
+    }
+  }, [users]);
+
+  // Filter users based on search and role filter
+  const filteredUsers = users.filter(user => {
+    const matchSearch = searchTerm === '' || 
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchRole = roleFilter === 'all' || user.role === roleFilter;
+    
+    return matchSearch && matchRole;
+  });
+
+  const openAdd = () => {
+    setEditingUser(null);
+    setForm({ name: '', email: '', role: 'student', department: '' });
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (user: User) => {
+    setEditingUser(user);
+    setForm({ 
+      name: user.name, 
+      email: user.email, 
+      role: user.role,
+      department: (user as any).department || ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const saveUser = () => {
+    if (!form.name || !form.email) return alert('Name and email are required');
+
+    if (editingUser) {
+      setUsers((prev) => prev.map((u) => (u.id === editingUser.id ? { ...u, ...form } : u)));
+      alert('User updated successfully!');
+    } else {
+      const id = `user-${Date.now()}`;
+      setUsers((prev) => [{ id, name: form.name, email: form.email, role: form.role, ...form } as any, ...prev]);
+      alert('User created successfully!');
+    }
+
+    setIsModalOpen(false);
+  };
+
+  const deleteUser = (id: string) => {
+    if (!confirm('Delete this user? This action cannot be undone.')) return;
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+    alert('User deleted');
+  };
+
+  const bulkDelete = () => {
+    if (selectedUsers.length === 0) {
+      alert('Please select users to delete');
+      return;
+    }
+    if (!confirm(`Delete ${selectedUsers.length} users? This cannot be undone.`)) return;
+    setUsers((prev) => prev.filter((u) => !selectedUsers.includes(u.id)));
+    setSelectedUsers([]);
+    alert('Users deleted successfully!');
+  };
+
+  const bulkChangeRole = (newRole: User['role']) => {
+    if (selectedUsers.length === 0) {
+      alert('Please select users');
+      return;
+    }
+    setUsers((prev) =>
+      prev.map((u) => (selectedUsers.includes(u.id) ? { ...u, role: newRole } : u))
+    );
+    setSelectedUsers([]);
+    alert(`Role updated for ${selectedUsers.length} users!`);
+  };
+
+  const exportUsers = () => {
+    const data = filteredUsers.map(u => ({
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      department: (u as any).department || 'N/A',
+    }));
+
+    const headers = ['Name', 'Email', 'Role', 'Department'];
+    const csv = [
+      headers.join(','),
+      ...data.map(d => headers.map(h => `"${String((d as any)[h.toLowerCase()] ?? '')}"`).join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `users-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUsers(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const stats = {
+    total: users.length,
+    students: users.filter(u => u.role === 'student').length,
+    teachers: users.filter(u => u.role === 'teacher').length,
+    admins: users.filter(u => u.role === 'dean').length,
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">User Management</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage system users and assign roles</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={exportUsers}>
+            <Download className="w-4 h-4" />
+            Export
+          </Button>
+          <Button variant="primary" className="gap-2" onClick={openAdd}>
+            <Plus className="w-4 h-4" />
+            Add User
+          </Button>
+        </div>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Users</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Students</p>
+              <p className="text-3xl font-bold text-blue-600">{stats.students}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Teachers</p>
+              <p className="text-3xl font-bold text-green-600">{stats.teachers}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Administrators</p>
+              <p className="text-3xl font-bold text-purple-600">{stats.admins}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Users List */}
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>All Users</CardTitle>
+          <CardDescription>Manage system users and their roles</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            {/* Search and Filter */}
+            <div className="flex gap-2 flex-col md:flex-row md:items-center">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search by name or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <select
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+              >
+                <option value="all">All Roles</option>
+                <option value="student">Students</option>
+                <option value="teacher">Teachers</option>
+                <option value="dean">Administrators</option>
+              </select>
+            </div>
+
+            {/* Bulk Actions */}
+            {selectedUsers.length > 0 && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg flex justify-between items-center">
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                  {selectedUsers.length} user{selectedUsers.length !== 1 ? 's' : ''} selected
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => bulkChangeRole('student')}
+                  >
+                    Make Student
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => bulkChangeRole('teacher')}
+                  >
+                    Make Teacher
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    className="gap-2"
+                    onClick={bulkDelete}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Results Count */}
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Showing {filteredUsers.length} of {users.length} users
+            </p>
+
+            {/* Users Table */}
+            <DataTable
+              columns={[
+                {
+                  key: 'id' as any,
+                  label: '',
+                  render: (_, user: User) => (
+                    <Checkbox
+                      checked={selectedUsers.includes(user.id)}
+                      onChange={() => toggleUserSelection(user.id)}
+                    />
+                  ),
+                },
+                { key: 'name' as any, label: 'Name' },
+                { key: 'email' as any, label: 'Email' },
+                {
+                  key: 'role' as any,
+                  label: 'Role',
+                  render: (value: any) => {
+                    const role = String(value);
+                    let variant: any = 'secondary';
+                    if (role === 'student') variant = 'default';
+                    else if (role === 'teacher') variant = 'success';
+                    else if (role === 'dean') variant = 'warning';
+                    return (
+                      <Badge variant={variant}>
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                      </Badge>
+                    );
+                  },
+                },
+                {
+                  key: 'department' as any,
+                  label: 'Department',
+                  render: (_: any, user: User) => (
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {(user as any).department || 'N/A'}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'id' as any,
+                  label: 'Actions',
+                  render: (_: any, row: User) => (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(row);
+                        }}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        className="gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteUser(row.id);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  ),
+                },
+              ]}
+              data={filteredUsers.map((u) => ({ ...u, id: u.id }))}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Add/Edit User Modal */}
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        title={editingUser ? 'Edit User' : 'Add User'}
+      >
+        <div className="space-y-4">
+          <Input
+            label="Full Name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Enter full name"
+          />
+          <Input
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="Enter email address"
+          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Role
+            </label>
+            <select
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value as User['role'] })}
+            >
+              <option value="student">Student</option>
+              <option value="teacher">Teacher</option>
+              <option value="dean">Administrator</option>
+            </select>
+          </div>
+
+          {(form.role === 'teacher' || form.role === 'dean') && (
+            <Input
+              label="Department"
+              value={form.department}
+              onChange={(e) => setForm({ ...form, department: e.target.value })}
+              placeholder="e.g., College of Information Technology"
+            />
+          )}
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={saveUser}>
+              {editingUser ? 'Save Changes' : 'Create User'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
