@@ -169,7 +169,7 @@ export default function TeacherDashboard() {
           value={<AnimatedCounter endValue={teachingLoad} />}
           footer="Estimated enrollees"
           icon={<Users className="w-6 h-6" />}
-          color="purple"
+          color="green"
           trend={8}
         />
         <DashboardCard
@@ -189,14 +189,14 @@ export default function TeacherDashboard() {
           value={<AnimatedCounter endValue={Math.round(studentFeedbackAvg * 10) / 10} decimals={1} suffix="/5" />}
           footer="Latest feedback"
           icon={<MessageSquare className="w-6 h-6" />}
-          color="orange"
+          color="yellow"
         />
         <DashboardCard
           title="Peer Reviews"
           value={<AnimatedCounter endValue={peerCompleted} suffix="/3" />}
           footer="Completed"
           icon={<Award className="w-6 h-6" />}
-          color="cyan"
+          color="red"
         />
       </div>
 

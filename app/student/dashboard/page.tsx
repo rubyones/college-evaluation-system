@@ -141,7 +141,7 @@ export default function StudentDashboard() {
           value={<AnimatedCounter endValue={enrolledCount} />}
           footer="Current semester"
           icon={<BookOpen className="w-6 h-6" />}
-          color="purple"
+          color="blue"
         />
         <DashboardCard
           title="Days Left"
