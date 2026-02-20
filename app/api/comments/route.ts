@@ -73,3 +73,64 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Server error', details: String(err) }, { status: 500 });
   }
 }
+
+// PATCH update a comment: { id, content, rating }
+export async function PATCH(request: NextRequest) {
+  try {
+    const token = getAuthToken(request);
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const decoded: any = await verifyToken(token);
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+
+    const body = await request.json();
+    const { id, content, rating } = body;
+    if (!id || !content) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+
+    const existing: any = await query('SELECT author_id FROM comments WHERE id = ?', [id]);
+    if (!existing || existing.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    const authorId = existing[0].author_id;
+    if (decoded.userId !== authorId && decoded.role !== 'dean') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    await query('UPDATE comments SET content = ?, rating = ? WHERE id = ?', [content, rating || null, id]);
+
+    const updated: any = await query('SELECT c.id, c.entity_type, c.entity_id, c.author_id, u.name as author_name, c.content, c.rating, c.created_at FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.id = ?', [id]);
+
+    return NextResponse.json({ success: true, comment: updated[0] });
+  } catch (err) {
+    console.error('Update comment error:', err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+
+// DELETE /api/comments?id=<id>
+export async function DELETE(request: NextRequest) {
+  try {
+    const token = getAuthToken(request);
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const decoded: any = await verifyToken(token);
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+    const existing: any = await query('SELECT author_id FROM comments WHERE id = ?', [id]);
+    if (!existing || existing.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    const authorId = existing[0].author_id;
+    if (decoded.userId !== authorId && decoded.role !== 'dean') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    await query('DELETE FROM comments WHERE id = ?', [id]);
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('Delete comment error:', err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}

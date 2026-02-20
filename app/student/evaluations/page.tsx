@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { mockEvaluationForm, mockCourses } from '@/data/mock';
 import { Alert } from '@/components/ui/Alert';
+import CommentSection from '@/components/CommentSection';
 
 const steps = [
   { id: 1, title: 'Select Course', description: 'Choose instructor to evaluate' },
@@ -294,6 +295,10 @@ export default function StudentEvaluations() {
           )}
         </CardContent>
       </Card>
+
+      {selectedCourse && (
+        <CommentSection entityType="course" entityId={selectedCourse} />
+      )}
     </div>
   );
 }
