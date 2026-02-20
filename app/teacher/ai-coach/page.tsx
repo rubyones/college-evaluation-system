@@ -336,7 +336,7 @@ export default function AICoach() {
                           {action.title}
                         </h4>
                         <Badge 
-                          variant={action.priority === 'high' ? 'danger' : action.priority === 'medium' ? 'warning' : 'secondary'}
+                          variant={action.priority === 'high' ? 'destructive' : action.priority === 'medium' ? 'warning' : 'secondary'}
                         >
                           {action.priority}
                         </Badge>
