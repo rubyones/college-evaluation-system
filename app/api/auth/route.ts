@@ -78,26 +78,31 @@ async function handleEmailLogin(
       );
     }
 
-    // Verify email domain
-    if (!email.endsWith('@jmc.edu.ph')) {
+    // Query database for user
+    const users = await query(
+      'SELECT id, name, email, role FROM users WHERE email = ? AND password = ?',
+      [email, password] // TODO: Use bcrypt for password hashing in production
+    ) as any[];
+
+    if (users.length === 0) {
       return NextResponse.json(
-        { error: 'Access denied. Please use your official JMC institutional account (@jmc.edu.ph)' },
-        { status: 403 }
+        { error: 'Invalid email or password' },
+        { status: 401 }
       );
     }
 
-    // Allow specific demo accounts with provided passwords
-    const demoAccounts: Record<string, { id: number; name: string; role: string; password: string }> = {
-      'rubygrace.ones@jmc.edu.ph': { id: 1001, name: 'Ruby Grace Ones', role: 'student', password: 'student123' },
-      'ryan.billera@jmc.edu.ph': { id: 1002, name: 'Ryan Billera', role: 'teacher', password: 'teacher123' },
-      'janette.claro@jmc.edu.ph': { id: 1003, name: 'Ms. Jannete Claro', role: 'dean', password: 'admin123' },
-    };
-
-    if (demoAccounts[email]) {
-      const acct = demoAccounts[email];
-      if (password === acct.password) {
-        const demoToken = await generateToken(acct.id, acct.role);
-        return NextResponse.json({
+    const user = users[0];
+    const token = await generateToken(user.id, user.role);
+    
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token
+      }
+    });
           success: true,
           user: { id: acct.id, name: acct.name, email, role: acct.role },
           token: demoToken,
