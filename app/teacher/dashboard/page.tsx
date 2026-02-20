@@ -448,7 +448,6 @@ export default function TeacherDashboard() {
             className="w-full gap-2"
             onClick={() => setFeedbackItems([...feedbackItems, {
               id: `new-${Date.now()}`,
-              studentName: 'New Feedback',
               comment: 'Request student feedback...',
               rating: 5,
               date: new Date()
