@@ -319,7 +319,7 @@ export default function DeanDashboard() {
         <CardContent>
           <div className="space-y-2">
             {recentActivities.map((activity, idx) => (
-              <div key={`${activity.timestamp}-${activity.type}-${idx}`} className="flex items-start gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition">
+              <div key={`${activity.time}-${activity.type}-${idx}`} className="flex items-start gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition">
                 <div className="mt-1">
                   {activity.type === 'login' && <div className="w-2 h-2 bg-blue-600 rounded-full" />}
                   {activity.type === 'submit' && <div className="w-2 h-2 bg-green-600 rounded-full" />}
