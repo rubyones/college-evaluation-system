@@ -63,13 +63,13 @@ export async function GET(request: NextRequest) {
 
     // Get responses for each evaluation
     const evaluationsWithResponses = await Promise.all(
-      (evaluations || []).map(async (eval: any) => {
+      (evaluations || []).map(async (evaluation: any) => {
         const responses: any = await query(
           'SELECT id, criteria_id, rating, comment FROM evaluation_responses WHERE evaluation_id = ? ORDER BY id',
-          [eval.id]
+          [evaluation.id]
         );
         return {
-          ...eval,
+          ...evaluation,
           responses: responses || [],
         };
       })
