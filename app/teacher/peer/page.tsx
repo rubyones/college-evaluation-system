@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { RatingScale } from '@/components/RatingScale';
 import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
 import { Checkbox } from '@/components/ui/Checkbox';
-import { mockUsers } from '@/data/mock';
+import { useFetch } from '@/hooks';
+import { downloadPdf } from '@/utils/helpers';
 import { Download, CheckCircle, Clock, MessageSquare, BarChart3 } from 'lucide-react';
+import { DashboardSkeleton } from '@/components/loading/Skeletons';
 
 interface PeerEvaluation {
   id: string;
@@ -21,72 +23,88 @@ interface PeerEvaluation {
   comment?: string;
 }
 
-const peers: PeerEvaluation[] = [
-  {
-    id: 'user-teacher-2',
-    peerName: 'Dr. Sarah Chen',
-    peerDepartment: 'Information Technology',
-    dueDate: '2024-12-15',
-    status: 'pending',
-  },
-  {
-    id: 'user-teacher-3',
-    peerName: 'Prof. Michael Brown',
-    peerDepartment: 'Computer Science',
-    dueDate: '2024-12-20',
-    status: 'completed',
-    completedDate: '2024-12-10',
-    ratings: {
-      teaching: 5,
-      collaboration: 4,
-      development: 5,
-      innovation: 4,
-    },
-    comment: 'Excellent instructor with strong collaboration skills.',
-  },
-  {
-    id: 'user-teacher-4',
-    peerName: 'Dr. Emily Wilson',
-    peerDepartment: 'Information Technology',
-    dueDate: '2024-12-18',
-    status: 'pending',
-  },
-];
 
 export default function PeerEvaluation() {
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [comment, setComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [evaluationList, setEvaluationList] = useState<PeerEvaluation[]>(peers);
+  const { data: evalData, loading: evalLoading } = useFetch<any>('/evaluations');
+  const [evaluationList, setEvaluationList] = useState<PeerEvaluation[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
   const selectedPeerData = evaluationList.find(p => p.id === selectedPeer);
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    if (evalData?.evaluations) {
+      const peers = evalData.evaluations
+        .filter((e:any) => e.evaluation_type === 'peer')
+        .map((e:any) => ({
+          id: e.id,
+          peerName: e.evaluatee_name || 'Unknown',
+          peerDepartment: e.evaluatee_department || '',
+          dueDate: e.created_at,
+          status: e.status,
+          completedDate: e.submitted_at,
+          ratings: e.responses ? {
+            teaching: e.responses.find((r:any)=>r.criteria_id==='teaching')?.rating,
+            collaboration: e.responses.find((r:any)=>r.criteria_id==='collaboration')?.rating,
+            development: e.responses.find((r:any)=>r.criteria_id==='development')?.rating,
+            innovation: e.responses.find((r:any)=>r.criteria_id==='innovation')?.rating,
+          } : undefined,
+          comment: e.overall_comment || '',
+        } as PeerEvaluation));
+      setEvaluationList(peers);
+    }
+  }, [evalData]);
+
+  const handleSubmit = async () => {
     if (!selectedPeer) return;
 
-    const updatedList = evaluationList.map(p => {
-      if (p.id === selectedPeer) {
-        return {
-          ...p,
-          status: 'completed' as const,
-          completedDate: new Date().toISOString().split('T')[0],
-          ratings,
-          comment,
-        };
-      }
-      return p;
-    });
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('auth_token') : null;
+    try {
+      const res = await fetch('/api/evaluations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          evaluationId: selectedPeer,
+          responses: Object.entries(ratings).map(([criteriaId, rating]) => ({
+            criteriaId,
+            rating,
+          })),
+          // peer evaluation type is already set on the server record
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit');
 
-    setEvaluationList(updatedList);
-    setSubmitted(true);
-    setTimeout(() => {
-      setSelectedPeer(null);
-      setRatings({});
-      setComment('');
-      setSubmitted(false);
-    }, 2000);
+      // update local state to reflect submission
+      const updatedList = evaluationList.map(p => {
+        if (p.id === selectedPeer) {
+          return {
+            ...p,
+            status: 'completed' as const,
+            completedDate: new Date().toISOString().split('T')[0],
+            ratings,
+            comment,
+          };
+        }
+        return p;
+      });
+      setEvaluationList(updatedList);
+      setSubmitted(true);
+      setTimeout(() => {
+        setSelectedPeer(null);
+        setRatings({});
+        setComment('');
+        setSubmitted(false);
+      }, 2000);
+    } catch (err) {
+      alert(`Error submitting evaluation: ${err}`);
+    }
   };
 
   const downloadEvaluationHistory = () => {
@@ -102,29 +120,46 @@ export default function PeerEvaluation() {
         'Innovation': p.ratings?.innovation || 'N/A',
       }));
 
-      const headers = Object.keys(history[0]);
+      const headers = Object.keys(history[0] || {});
       const csv = [
         headers.join(','),
-        ...history.map(h => headers.map(col => `"${String((h as any)[col])}"` ).join(',')),
+        ...history.map(h => headers.map(col => `"${String((h as any)[col])}"`).join(',')),
       ].join('\n');
 
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `peer-evaluations-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      alert('Evaluation history downloaded successfully!');
+      downloadPdf(csv, `peer-evaluations-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (e) {
-      alert('Failed to download history');
+      alert('Failed to generate history report');
     }
   };
 
-  const pending = evaluationList.filter(p => p.status === 'pending').length;
+  if (evalLoading) return <DashboardSkeleton />;
+
+  const pendingCount = evaluationList.filter(p => p.status === 'pending').length;
   const completed = evaluationList.filter(p => p.status === 'completed').length;
+  const pending = pendingCount;
+
+  // compute average score given in completed peer reviews
+  const avgScoreGiven = (() => {
+    const completedEvals = evaluationList.filter(p => p.status === 'completed' && p.ratings);
+    if (!completedEvals.length) return 0;
+    const totalAvg = completedEvals.reduce((acc, p) => {
+      const vals = Object.values(p.ratings || {}).map(v => v || 0);
+      const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+      return acc + avg;
+    }, 0);
+    return Math.round((totalAvg / completedEvals.length) * 10) / 10;
+  })();
+
+  if (!showHistory && pendingCount === 0) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">No peer evaluations pending</h2>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">
+          You have completed all assigned peer reviews.
+        </p>
+      </div>
+    );
+  }
 
   if (showHistory) {
     return (
@@ -240,7 +275,7 @@ export default function PeerEvaluation() {
             <div className="text-center">
               <BarChart3 className="w-8 h-8 mx-auto text-blue-600 mb-2" />
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Avg Score Given</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">4.5/5</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{avgScoreGiven}/5</p>
             </div>
           </CardContent>
         </Card>

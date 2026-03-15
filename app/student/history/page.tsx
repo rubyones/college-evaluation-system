@@ -8,28 +8,29 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { formatDate } from '@/utils/helpers';
+import { downloadPdf } from '@/utils/helpers';
 import { Download, FileText, Search } from 'lucide-react';
-import { mockEvaluationResponses } from '@/data/mock';
+import { useFetch } from '@/hooks';
 
 export default function StudentHistory() {
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: historyData, loading: historyLoading } = useFetch<any>('/evaluations');
+  const [isLoading, setIsLoading] = useState(historyLoading);
   const [semester, setSemester] = useState('all');
   const [selectedEval, setSelectedEval] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(t);
-  }, []);
+    setIsLoading(historyLoading);
+  }, [historyLoading]);
 
   const downloadEvaluationHistory = () => {
     try {
-      if (!mockEvaluationResponses || mockEvaluationResponses.length === 0) {
+      if (!historyData?.evaluations || historyData.evaluations.length === 0) {
         alert('No history to download');
         return;
       }
 
-      const history = mockEvaluationResponses.map((r) => ({
+      const history = historyData.evaluations.map((r:any) => ({
         Course: r.course?.name || 'Unknown',
         'Course Code': r.course?.code || 'N/A',
         Instructor: r.evaluatee?.name || 'Unknown',
@@ -38,62 +39,21 @@ export default function StudentHistory() {
         'Response Count': r.responses?.length || 0,
       }));
 
-      const headers = Object.keys(history[0]);
+      const headers = Object.keys(history[0] || {});
       const csv = [
         headers.join(','),
         ...history.map((h) => headers.map((col) => `"${String((h as any)[col] ?? '')}"`).join(',')),
       ].join('\n');
 
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `evaluation-history-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      alert('Evaluation history downloaded successfully!');
+      downloadPdf(csv, `evaluation-history-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);
-      alert('Failed to download history');
+      alert('Failed to generate history report');
     }
   };
 
-  const downloadEvaluationJSON = () => {
-    try {
-      const data = {
-        generatedAt: new Date().toISOString(),
-        totalEvaluations: mockEvaluationResponses.length,
-        evaluations: mockEvaluationResponses.map((r) => ({
-          courseCode: r.course?.code,
-          courseName: r.course?.name,
-          instructor: r.evaluatee?.name,
-          submittedDate: r.submittedAt,
-          status: r.isLocked ? 'Locked' : 'Submitted',
-          responseCount: r.responses?.length,
-          overallComment: r.overallComment,
-        })),
-      };
-
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `evaluation-history-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      alert('Evaluation history downloaded successfully!');
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error(e);
-      alert('Failed to download history');
-    }
-  };
+  // JSON export removed per requirement - all downloads now PDF only
 
   if (isLoading) return <DashboardSkeleton />;
 
@@ -105,7 +65,7 @@ export default function StudentHistory() {
   ];
 
   const q = searchTerm.trim().toLowerCase();
-  const filteredEvals = mockEvaluationResponses.filter((e) => {
+  const filteredEvals = (historyData?.evaluations || []).filter((e:any) => {
     if (!q) return true;
     return (
       (e.course?.name || '').toLowerCase().includes(q) ||
@@ -125,11 +85,7 @@ export default function StudentHistory() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={downloadEvaluationHistory} className="gap-2" size="sm">
             <Download className="w-4 h-4" />
-            CSV
-          </Button>
-          <Button variant="outline" onClick={downloadEvaluationJSON} className="gap-2" size="sm">
-            <FileText className="w-4 h-4" />
-            JSON
+            Download PDF
           </Button>
         </div>
       </div>
@@ -242,55 +198,53 @@ export default function StudentHistory() {
         </CardContent>
       </Card>
 
-      {selectedEval && (
-        <Card className="border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20">
-          <CardHeader className="flex flex-row justify-between items-start">
-            <CardTitle>Evaluation Summary</CardTitle>
-            <button
-              onClick={() => setSelectedEval(null)}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl"
-            >
-              ✕
-            </button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {mockEvaluationResponses
-              .filter((e) => e.id === selectedEval)
-              .map((responseItem) => (
-                <div key={responseItem.id} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Course</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">{responseItem.course?.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Instructor</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">{responseItem.evaluatee?.name}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    {responseItem.responses.map((resp, idx) => (
-                      <div key={`${responseItem.id}-${resp.criteriaId}-${idx}`} className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">
-                          {responseItem.form?.criteria.find((c) => c.id === resp.criteriaId)?.name}
-                        </span>
-                        <span className="font-semibold text-gray-900 dark:text-white">{resp.score}/5</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {responseItem.overallComment && (
-                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Comments:</p>
-                      <p className="text-gray-900 dark:text-white">{responseItem.overallComment}</p>
-                    </div>
-                  )}
+      {selectedEval && (() => {
+        const responseItem = historyData?.evaluations?.find((e: any) => e.id === selectedEval);
+        if (!responseItem) return null;
+        return (
+          <Card className="border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20">
+            <CardHeader className="flex flex-row justify-between items-start">
+              <CardTitle>Evaluation Summary</CardTitle>
+              <button
+                onClick={() => setSelectedEval(null)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl"
+              >
+                ✕
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Course</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{responseItem.course?.name}</p>
                 </div>
-              ))}
-          </CardContent>
-        </Card>
-      )}
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Instructor</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{responseItem.evaluatee?.name}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                {responseItem.responses?.map((resp: any, idx: number) => (
+                  <div key={`${responseItem.id}-${resp.criteriaId}-${idx}`} className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">
+                      {resp.criteriaName || resp.criteria_id || 'Criterion'}
+                    </span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{resp.rating || resp.score}/5</span>
+                  </div>
+                ))}
+              </div>
+
+              {responseItem.overallComment && (
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Comments:</p>
+                  <p className="text-gray-900 dark:text-white">{responseItem.overallComment}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
     </div>
   );
 }

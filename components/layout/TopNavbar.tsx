@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
-import { Moon, Sun, Bell, LogOut } from 'lucide-react';
+import React from 'react';
+import { Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Avatar } from '@/components/ui/Avatar';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { RoleSwitcher } from './RoleSwitcher';
 
@@ -36,12 +34,6 @@ export function TopNavbar() {
           {/* Role Switcher */}
           <RoleSwitcher />
 
-          {/* Notifications */}
-          <button className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors relative">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-600 rounded-full" />
-          </button>
-
           {/* Theme Toggle */}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -58,7 +50,6 @@ export function TopNavbar() {
           {user && (
             <Dropdown
               triggerLabel={user.name}
-              triggerIcon={<Avatar src={user.avatar} name={user.name} size="sm" />}
               items={[
                 {
                   label: 'Profile',

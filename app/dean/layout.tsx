@@ -9,9 +9,8 @@ import { LayoutDashboard, Users, BookOpen, FileText, BarChart3, Settings } from 
 
 const deanNavItems = [
   { label: 'Dashboard', href: '/dean/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-  { label: 'Academic Management', href: '/dean/academic', icon: <BookOpen className="w-5 h-5" /> },
+  { label: 'Evaluation Setup', href: '/dean/evaluation-setup', icon: <BookOpen className="w-5 h-5" /> },
   { label: 'Evaluation Forms', href: '/dean/forms', icon: <FileText className="w-5 h-5" /> },
-  { label: 'Evaluations', href: '/dean/evaluations', icon: <BarChart3 className="w-5 h-5" /> },
   { label: 'Reports', href: '/dean/reports', icon: <BarChart3 className="w-5 h-5" /> },
   { label: 'Users', href: '/dean/users', icon: <Users className="w-5 h-5" /> },
   { label: 'Audit Logs', href: '/dean/audit', icon: <FileText className="w-5 h-5" /> },

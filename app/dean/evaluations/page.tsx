@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { DataTable } from '@/components/DataTable';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { mockEvaluationResponses } from '@/data/mock';
-import { ChartCard } from '@/components/ChartCard';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { useFetch } from '@/hooks';
+import { downloadPdf } from '@/utils/helpers';
 import { Search, Filter, Download, Eye } from 'lucide-react';
 
 export default function Evaluations() {
@@ -17,60 +17,74 @@ export default function Evaluations() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedEval, setSelectedEval] = useState<any>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const { data: evalData, loading: evalLoading } = useFetch<any>('/evaluations');
 
-  // Filter evaluations based on search and filters
-  const filteredEvals = mockEvaluationResponses.filter(evaluation => {
+  if (evalLoading) return <DashboardSkeleton />;
+
+  // use data from API
+  const evals = evalData?.evaluations || [];
+  const filteredEvals = evals.filter((evaluation: any) => {
+    const evaluatorName = evaluation.evaluator?.name || `${evaluation.evaluator?.first_name || ''} ${evaluation.evaluator?.last_name || ''}`.trim();
+    const evaluateeName = evaluation.evaluatee?.name || `${evaluation.evaluatee?.first_name || ''} ${evaluation.evaluatee?.last_name || ''}`.trim();
+    const courseName = evaluation.course?.name || '';
     const matchSearch = searchTerm === '' || 
-      evaluation.evaluator?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      evaluation.evaluatee?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      evaluation.course?.name.toLowerCase().includes(searchTerm.toLowerCase());
+      evaluatorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      evaluateeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      courseName.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchType = filterType === 'all' || evaluation.form?.type === filterType;
+    const statusFlag = evaluation.isLocked || evaluation.status === 'locked';
     const matchStatus = filterStatus === 'all' || 
-      (filterStatus === 'locked' && evaluation.isLocked) ||
-      (filterStatus === 'submitted' && !evaluation.isLocked);
+      (filterStatus === 'locked' && statusFlag) ||
+      (filterStatus === 'submitted' && !statusFlag);
     
     return matchSearch && matchType && matchStatus;
   });
 
   // Calculate statistics
   const stats = {
-    total: mockEvaluationResponses.length,
-    completed: mockEvaluationResponses.filter(e => e.isLocked).length,
-    pending: mockEvaluationResponses.filter(e => !e.isLocked).length,
-    averageScore: (mockEvaluationResponses.reduce((sum, e) => {
-      const scores = e.responses?.map(r => r.score || 0) || [];
+    total: evals.length,
+    completed: evals.filter(e => e.isLocked || e.status === 'locked').length,
+    pending: evals.filter(e => !(e.isLocked || e.status === 'locked')).length,
+    averageScore: (evals.reduce((sum, e) => {
+      const scores = e.responses?.map((r:any) => r.score || 0) || [];
       return sum + (scores.length > 0 ? scores.reduce((a, b) => a + b) / scores.length : 0);
-    }, 0) / mockEvaluationResponses.length).toFixed(2),
+    }, 0) / (evals.length || 1)).toFixed(2),
   };
 
-  // Analytics data
-  const completionByDay = [
-    { day: 'Mon', completed: 8, pending: 5 },
-    { day: 'Tue', completed: 12, pending: 4 },
-    { day: 'Wed', completed: 10, pending: 6 },
-    { day: 'Thu', completed: 14, pending: 2 },
-    { day: 'Fri', completed: 11, pending: 3 },
-  ];
+  // handler to toggle lock status of an evaluation
+  const handleToggleLock = async (evalId: string, lock: boolean) => {
+    try {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('auth_token') : null;
+      await fetch('/api/evaluations', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({ id: evalId, status: lock ? 'locked' : 'submitted' }),
+      });
+      // refresh data by simple reload (could optimize)
+      window.location.reload();
+    } catch (err) {
+      alert('Failed to update lock status');
+    }
+  };
 
-  const scoreDistribution = [
-    { range: '4.5-5.0', count: 12 },
-    { range: '4.0-4.4', count: 8 },
-    { range: '3.5-3.9', count: 4 },
-    { range: '3.0-3.4', count: 2 },
-  ];
-
-  const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444'];
 
   const handleExportData = () => {
-    const data = filteredEvals.map(e => ({
-      evaluator: e.evaluator?.name,
-      evaluatee: e.evaluatee?.name,
-      course: e.course?.name,
-      type: e.form?.type,
-      status: e.isLocked ? 'Locked' : 'Submitted',
-      averageScore: e.responses?.length ? (e.responses.reduce((sum, r) => sum + (r.score || 0), 0) / e.responses.length).toFixed(2) : 'N/A',
-    }));
+    const data = filteredEvals.map(e => {
+      const evaluatorName = e.evaluator?.name || `${e.evaluator?.first_name || ''} ${e.evaluator?.last_name || ''}`.trim();
+      const evaluateeName = e.evaluatee?.name || `${e.evaluatee?.first_name || ''} ${e.evaluatee?.last_name || ''}`.trim();
+      return {
+        evaluator: evaluatorName,
+        evaluatee: evaluateeName,
+        course: e.course?.name,
+        type: e.form?.type,
+        status: e.isLocked || e.status === 'locked' ? 'Locked' : 'Submitted',
+        averageScore: e.responses?.length ? (e.responses.reduce((sum: number, r: any) => sum + (r.score || 0), 0) / e.responses.length).toFixed(2) : 'N/A',
+      };
+    });
 
     const headers = ['Evaluator', 'Evaluatee', 'Course', 'Type', 'Status', 'Average Score'];
     const csv = [
@@ -78,15 +92,7 @@ export default function Evaluations() {
       ...data.map(d => headers.map(h => `"${String((d as any)[h.toLowerCase().replace(/\s/g, '')] ?? '')}"`).join(',')),
     ].join('\n');
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `evaluations-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadPdf(csv, `evaluations-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   return (
@@ -143,40 +149,18 @@ export default function Evaluations() {
         </Card>
       </div>
 
-      {/* Analytics Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard
-          title="Completion Trend"
-          description="Evaluations completed per day"
-        >
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={completionByDay}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="completed" stroke="#10B981" strokeWidth={2} />
-              <Line type="monotone" dataKey="pending" stroke="#F59E0B" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard
-          title="Score Distribution"
-          description="Evaluation scores breakdown"
-        >
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={scoreDistribution}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="range" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="count" fill="#3B82F6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+      {/* Analytics Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Analytics Overview</CardTitle>
+          <CardDescription>Charts have been disabled. Use the table below for full details.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            The evaluations table below contains all evaluation data, including status and scores.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Search and Filter Section */}
       <Card>
@@ -222,7 +206,7 @@ export default function Evaluations() {
 
             {/* Results Count */}
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              Showing {filteredEvals.length} of {mockEvaluationResponses.length} evaluations
+              Showing {filteredEvals.length} of {evals.length} evaluations
             </p>
 
             {/* Evaluations Table */}
@@ -273,18 +257,27 @@ export default function Evaluations() {
                   key: 'id' as any,
                   label: 'Actions',
                   render: (_, data: any) => (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        setSelectedEval(data);
-                        setShowDetails(true);
-                      }}
-                    >
-                      <Eye className="w-4 h-4" />
-                      View
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => {
+                          setSelectedEval(data);
+                          setShowDetails(true);
+                        }}
+                      >
+                        <Eye className="w-4 h-4" />
+                        View
+                      </Button>
+                      <Button
+                        variant={data.isLocked ? 'danger' : 'secondary'}
+                        size="sm"
+                        onClick={() => handleToggleLock(data.id, !data.isLocked)}
+                      >
+                        {data.isLocked ? 'Unlock' : 'Lock'}
+                      </Button>
+                    </div>
                   ),
                 },
               ]}

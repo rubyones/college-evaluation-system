@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useFetch } from '@/hooks';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -70,6 +72,29 @@ export default function AICoach() {
   const [actions, setActions] = useState<ActionItem[]>(initialActions);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
+  const { user } = useAuth();
+  const { data: analyticsData, loading: analyticsLoading } = useFetch<any>('/analytics');
+  const { data: evalData, loading: evalLoading } = useFetch<any>('/evaluations');
+  const { data: coursesData, loading: coursesLoading } = useFetch<any>('/courses');
+  const teacherEvals = evalData?.evaluations?.filter((e:any) => e.evaluatee_id === user?.id) || [];
+
+  // If analytics provides recommended actions, prefer them over initialActions
+  useEffect(() => {
+    const items = analyticsData?.analytics?.actionItems;
+    if (Array.isArray(items) && items.length > 0) {
+      const mapped = items.map((it: any, idx: number) => ({
+        id: it.id || `action-${idx}`,
+        title: it.title || it.name || 'Suggested Action',
+        description: it.description || it.detail || '',
+        category: it.category || 'opportunity',
+        priority: it.priority || 'medium',
+        dueDate: it.dueDate || it.due || new Date().toISOString().split('T')[0],
+        completed: Boolean(it.completed),
+      } as ActionItem));
+      setActions(mapped);
+    }
+  }, [analyticsData]);
+
   const toggleAction = (id: string) => {
     setActions(actions.map(a => 
       a.id === id ? { ...a, completed: !a.completed } : a
@@ -120,10 +145,12 @@ export default function AICoach() {
   const completedCount = actions.filter(a => a.completed).length;
   const pendingCount = actions.filter(a => !a.completed).length;
   const categoryCounts = {
-    strength: initialActions.filter(a => a.category === 'strength').length,
-    opportunity: initialActions.filter(a => a.category === 'opportunity').length,
-    growth: initialActions.filter(a => a.category === 'growth').length,
+    strength: actions.filter(a => a.category === 'strength').length,
+    opportunity: actions.filter(a => a.category === 'opportunity').length,
+    growth: actions.filter(a => a.category === 'growth').length,
   };
+
+  const insightsGenerated = analyticsData?.analytics?.insightsGenerated ?? (evalData?.evaluations?.length ?? 0);
 
   return (
     <div className="space-y-6">
@@ -196,9 +223,22 @@ export default function AICoach() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <p className="font-semibold text-green-900 dark:text-green-100 mb-2">✨ Mostly Positive Sentiment</p>
+            <p className="font-semibold text-green-900 dark:text-green-100 mb-2">✨ Teaching Overview</p>
             <p className="text-sm text-green-800 dark:text-green-200">
-              65% of student comments express positive sentiments about your teaching, 25% neutral, and 10% critical. Your overall rating is 4.6/5, placing you in the top 15% of instructors.
+              {(() => {
+                const total = teacherEvals.length;
+                const positives = teacherEvals.filter((e:any) => Number(e.score ?? e.rating ?? 0) >= 4).length;
+                const neutrals = teacherEvals.filter((e:any) => {
+                  const s = Number(e.score ?? e.rating ?? 0);
+                  return s >= 3 && s < 4;
+                }).length;
+                const negs = total - positives - neutrals;
+                const pPct = total ? Math.round((positives/total)*100) : 0;
+                const nPct = total ? Math.round((neutrals/total)*100) : 0;
+                const negPct = total ? 100 - pPct - nPct : 0;
+                const avg = total ? (teacherEvals.reduce((s:any,e:any)=>s+Number(e.score ?? e.rating ?? 0),0)/total) : (analyticsData?.analytics?.evaluationRate||0);
+                return `${pPct}% of ratings are positive, ${nPct}% neutral, and ${negPct}% negative. Your overall rating is ${avg.toFixed(1)}/5.`;
+              })()}
             </p>
           </div>
         </CardContent>
@@ -213,29 +253,22 @@ export default function AICoach() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="p-4 bg-greenalt-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg">
-            <h4 className="font-semibold text-green-900 dark:text-green-100 mb-2">📚 Subject Matter Expertise</h4>
-            <p className="text-sm text-green-800 dark:text-green-200">
-              Students consistently praise your deep knowledge and ability to explain complex concepts clearly. Continue leveraging this strength.
-            </p>
-            <Badge variant="success" className="mt-2">Rating: 4.8/5</Badge>
-          </div>
-
-          <div className="p-4 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg">
-            <h4 className="font-semibold text-green-900 dark:text-green-100 mb-2">🎯 Course Organization</h4>
-            <p className="text-sm text-green-800 dark:text-green-200">
-              Your courses are well-structured with clear objectives, materials, and assessments. This creates a positive learning environment.
-            </p>
-            <Badge variant="success" className="mt-2">Rating: 4.6/5</Badge>
-          </div>
-
-          <div className="p-4 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg">
-            <h4 className="font-semibold text-green-900 dark:text-green-100 mb-2">💬 Student Accessibility</h4>
-            <p className="text-sm text-green-800 dark:text-green-200">
-              Students appreciate your responsiveness and willingness to help. Maintain this supportive approach.
-            </p>
-            <Badge variant="success" className="mt-2">Rating: 4.5/5</Badge>
-          </div>
+          {(() => {
+            const criteria = analyticsData?.analytics?.criteriaBreakdown || [];
+            if (!criteria.length) {
+              return <p className="text-sm text-gray-600 dark:text-gray-400">No strength data available</p>;
+            }
+            const top3 = [...criteria].sort((a:any,b:any)=>b.score-a.score).slice(0,3);
+            return top3.map((item:any, idx:number) => (
+              <div key={idx} className="p-4 bg-greenalt-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg">
+                <h4 className="font-semibold text-green-900 dark:text-green-100 mb-2">{item.criteriaName || item.name || 'Strength'}</h4>
+                <p className="text-sm text-green-800 dark:text-green-200">
+                  You scored {item.score.toFixed(1)}/5 in this area based on recent evaluations.
+                </p>
+                <Badge variant="success" className="mt-2">Rating: {item.score.toFixed(1)}/5</Badge>
+              </div>
+            ));
+          })()}
         </CardContent>
       </Card>
 

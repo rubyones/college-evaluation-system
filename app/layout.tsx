@@ -2,13 +2,12 @@ import type { Metadata } from 'next';
 import Providers from './providers';
 import { Outfit } from 'next/font/google';
 import './globals.css';
-import { AuthProvider } from '@/context/AuthContext';
 
 const outfit = Outfit({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'CITE-ES | College Evaluation System',
-  description: 'College of Information Technology Evaluation System',
+  description: 'College of Information Technology Education Evaluation System',
 };
 
 export default function RootLayout({

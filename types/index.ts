@@ -10,6 +10,7 @@ export interface User {
   department?: string;
   employeeId?: string;
   studentId?: string;
+  course?: string;
 }
 
 // Course Types

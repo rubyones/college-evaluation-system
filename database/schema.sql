@@ -1,156 +1,156 @@
--- CITE-ES Database Schema
--- College of Information Technology Evaluation System
-
--- Create Database
-CREATE DATABASE IF NOT EXISTS cite_es;
-USE cite_es;
+-- College Evaluation System - Database Schema
+-- Target Database: cite_es
 
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  jmc_id VARCHAR(8) UNIQUE NOT NULL,
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
-  first_name VARCHAR(100) NOT NULL,
-  last_name VARCHAR(100) NOT NULL,
-  role ENUM('student', 'teacher', 'dean') NOT NULL,
-  google_id VARCHAR(255),
-  password_hash VARCHAR(255),
-  is_active BOOLEAN DEFAULT TRUE,
-  email_verified BOOLEAN DEFAULT FALSE,
-  last_login TIMESTAMP NULL,
+  password VARCHAR(255) NOT NULL,
+  role ENUM('student', 'teacher', 'dean') NOT NULL DEFAULT 'student',
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Courses Table
+CREATE TABLE IF NOT EXISTS courses (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  code VARCHAR(50) UNIQUE NOT NULL,
+  instructor_id VARCHAR(36),
+  description TEXT,
+  credits INT DEFAULT 3,
+  semester VARCHAR(50),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (instructor_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Enrollments Table (Students in Courses)
+CREATE TABLE IF NOT EXISTS course_enrollments (
+  id VARCHAR(36) PRIMARY KEY,
+  student_id VARCHAR(36) NOT NULL,
+  course_id VARCHAR(36) NOT NULL,
+  enrollment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_enrollment (student_id, course_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Evaluations Table
+CREATE TABLE IF NOT EXISTS evaluations (
+  id VARCHAR(36) PRIMARY KEY,
+  course_id VARCHAR(36),
+  evaluatee_id VARCHAR(36),
+  evaluator_id VARCHAR(36),
+  evaluation_type ENUM('teacher', 'peer', 'self') DEFAULT 'teacher',
+  status ENUM('draft', 'submitted', 'locked') DEFAULT 'draft',
+  submitted_at TIMESTAMP NULL,
+  locked_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  FOREIGN KEY (evaluatee_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (evaluator_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Evaluation Responses Table
+CREATE TABLE IF NOT EXISTS evaluation_responses (
+  id VARCHAR(36) PRIMARY KEY,
+  evaluation_id VARCHAR(36) NOT NULL,
+  criteria_id VARCHAR(36),
+  rating INT CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE,
+  FOREIGN KEY (criteria_id) REFERENCES evaluation_criteria(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Comments Table
+CREATE TABLE IF NOT EXISTS comments (
+  id VARCHAR(36) PRIMARY KEY,
+  entity_type VARCHAR(50) NOT NULL,
+  entity_id VARCHAR(36) NOT NULL,
+  author_id VARCHAR(36),
+  parent_id VARCHAR(36) DEFAULT NULL,
+  content TEXT NOT NULL,
+  rating INT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_email (email),
-  INDEX idx_role (role),
-  INDEX idx_google_id (google_id)
-);
+  FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Audit Logs Table
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(36),
+  action VARCHAR(100),
+  description TEXT,
+  ip_address VARCHAR(50),
+  user_agent TEXT,
+  status VARCHAR(50),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Sessions Table
 CREATE TABLE IF NOT EXISTS sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  token VARCHAR(500) NOT NULL UNIQUE,
-  ip_address VARCHAR(45),
-  user_agent VARCHAR(500),
-  expires_at TIMESTAMP NOT NULL,
+  user_id VARCHAR(36),
+  token VARCHAR(500),
+  ip_address VARCHAR(50),
+  user_agent TEXT,
+  expires_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_user_id (user_id),
-  INDEX idx_token (token)
-);
-
--- Audit Log Table
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT,
-  action VARCHAR(100) NOT NULL,
-  description TEXT,
-  ip_address VARCHAR(45),
-  user_agent VARCHAR(500),
-  status ENUM('success', 'failed', 'pending') DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_user_id (user_id),
-  INDEX idx_action (action),
-  INDEX idx_created_at (created_at)
-);
-
--- Courses Table
-CREATE TABLE IF NOT EXISTS courses (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  code VARCHAR(50) UNIQUE NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  teacher_id INT NOT NULL,
-  section VARCHAR(10),
-  academic_year VARCHAR(10),
-  semester INT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_teacher_id (teacher_id),
-  INDEX idx_code (code)
-);
-
--- Course Enrollments Table
-CREATE TABLE IF NOT EXISTS course_enrollments (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  course_id INT NOT NULL,
-  student_id INT NOT NULL,
-  enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
-  UNIQUE KEY unique_enrollment (course_id, student_id),
-  INDEX idx_student_id (student_id)
-);
-
--- Evaluation Criteria Table
-CREATE TABLE IF NOT EXISTS evaluation_criteria (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  weight DECIMAL(5, 2) NOT NULL,
-  max_score INT DEFAULT 5,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_name (name)
-);
-
--- Evaluations Table
-CREATE TABLE IF NOT EXISTS evaluations (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  course_id INT NOT NULL,
-  student_id INT NOT NULL,
-  evaluator_id INT NOT NULL,
-  status ENUM('pending', 'completed', 'submitted') DEFAULT 'pending',
-  overall_score DECIMAL(5, 2),
-  comments TEXT,
-  submitted_at TIMESTAMP NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (evaluator_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_course_id (course_id),
-  INDEX idx_student_id (student_id),
-  INDEX idx_evaluator_id (evaluator_id),
-  INDEX idx_status (status)
-);
-
--- Evaluation Responses Table
-CREATE TABLE IF NOT EXISTS evaluation_responses (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  evaluation_id INT NOT NULL,
-  criteria_id INT NOT NULL,
-  score INT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE,
-  FOREIGN KEY (criteria_id) REFERENCES evaluation_criteria(id) ON DELETE CASCADE,
-  UNIQUE KEY unique_response (evaluation_id, criteria_id),
-  INDEX idx_evaluation_id (evaluation_id)
-);
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Academic Periods Table
 CREATE TABLE IF NOT EXISTS academic_periods (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  academic_year VARCHAR(10) NOT NULL,
-  semester INT NOT NULL,
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
-  is_active BOOLEAN DEFAULT FALSE,
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(100),
+  start_date DATE,
+  end_date DATE,
+  is_active TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Evaluation Periods Table
+CREATE TABLE IF NOT EXISTS evaluation_periods (
+  id VARCHAR(36) PRIMARY KEY,
+  academic_period_id VARCHAR(36),
+  start_date DATE,
+  end_date DATE,
+  is_active TINYINT(1) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_period (academic_year, semester),
-  INDEX idx_is_active (is_active)
-);
+  FOREIGN KEY (academic_period_id) REFERENCES academic_periods(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Insert default evaluation criteria
-INSERT INTO evaluation_criteria (name, description, weight, max_score) VALUES
-('Clarity', 'Presentation clarity and communication effectiveness', 30, 5),
-('Subject Mastery', 'Content knowledge and expertise demonstrated', 40, 5),
-('Engagement', 'Ability to motivate and engage students', 30, 5);
+-- Evaluation Criteria Table
+CREATE TABLE IF NOT EXISTS evaluation_criteria (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255),
+  description TEXT,
+  weight INT DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Insert default academic period
-INSERT INTO academic_periods (name, academic_year, semester, start_date, end_date, is_active) VALUES
-('First Semester 2024-2025', '2024-2025', 1, '2024-08-01', '2024-12-15', TRUE);
+-- Evaluation Forms Table
+CREATE TABLE IF NOT EXISTS evaluation_forms (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255),
+  evaluation_type ENUM('teacher', 'peer', 'self') DEFAULT 'teacher',
+  description TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Indexes for Performance
+CREATE INDEX IF NOT EXISTS idx_courses_instructor ON courses(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_course_enrollments_student ON course_enrollments(student_id);
+CREATE INDEX IF NOT EXISTS idx_course_enrollments_course ON course_enrollments(course_id);
+CREATE INDEX IF NOT EXISTS idx_evaluations_course ON evaluations(course_id);
+CREATE INDEX IF NOT EXISTS idx_evaluations_evaluatee ON evaluations(evaluatee_id);
+CREATE INDEX IF NOT EXISTS idx_evaluations_evaluator ON evaluations(evaluator_id);
+CREATE INDEX IF NOT EXISTS idx_evaluation_responses_evaluation ON evaluation_responses(evaluation_id);
+CREATE INDEX IF NOT EXISTS idx_comments_author ON comments(author_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);

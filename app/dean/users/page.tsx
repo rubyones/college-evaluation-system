@@ -1,88 +1,99 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { DataTable } from '@/components/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { mockUsers } from '@/data/mock';
+import { useFetch } from '@/hooks';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Checkbox } from '@/components/ui/Checkbox';
 import type { User } from '@/types';
 import { Search, Plus, Trash2, Edit2, Download, Upload } from 'lucide-react';
+import { downloadPdf } from '@/utils/helpers';
 
-const STORAGE_KEY = 'admin-users';
+// users are loaded from the backend via API
 
-function loadInitialUsers(): User[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as User[];
-  } catch (e) {
-    // ignore
-  }
-  return Object.values(mockUsers).map((u) => ({ ...u }));
-}
 
 export default function Users() {
+  const { data: usersData, loading: usersLoading, error: usersError } = useFetch<any>('/users');
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'student' as User['role'], department: '' });
+  const [form, setForm] = useState({ name: '', email: '', role: 'student' as User['role'], course: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
+  // Debug log for API response
   useEffect(() => {
-    const initial = loadInitialUsers();
-    setUsers(initial);
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-    } catch (e) {
-      // ignore
+    console.log('Raw usersData from API:', usersData);
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
     }
-  }, [users]);
+  }, [usersData, usersError]);
+  useEffect(() => {
+    if (usersData?.users) {
+      setUsers(usersData.users);
+    }
+  }, [usersData]);
+
+  // users state is managed based on API response (this effect is now merged above)
+
+  if (usersLoading) return <DashboardSkeleton />;
+
 
   // Filter users based on search and role filter
   const filteredUsers = users.filter(user => {
     const matchSearch = searchTerm === '' || 
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    
+      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.course?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
     const matchRole = roleFilter === 'all' || user.role === roleFilter;
-    
     return matchSearch && matchRole;
   });
 
+  // Debug log for duplicate key error
+  console.log('Filtered User IDs:', filteredUsers.map(u => u.id));
+
   const openAdd = () => {
     setEditingUser(null);
-    setForm({ name: '', email: '', role: 'student', department: '' });
+    setForm({ name: '', email: '', role: 'student', course: '' });
     setIsModalOpen(true);
   };
 
   const openEdit = (user: User) => {
     setEditingUser(user);
     setForm({ 
-      name: user.name, 
-      email: user.email, 
+      name: user.name || '', 
+      email: user.email || '', 
       role: user.role,
-      department: (user as any).department || ''
+      course: user.course || ''
     });
     setIsModalOpen(true);
   };
 
   const saveUser = () => {
-    if (!form.name || !form.email) return alert('Name and email are required');
+    if (!form.name?.trim() || !form.email?.trim()) {
+      return alert('Name and email are required');
+    }
 
     if (editingUser) {
-      setUsers((prev) => prev.map((u) => (u.id === editingUser.id ? { ...u, ...form } : u)));
+      const updatedUser = { ...editingUser, ...form };
+      setUsers((prev) => prev.map((u) => (u.id === editingUser.id ? updatedUser : u)));
       alert('User updated successfully!');
     } else {
       const id = `user-${Date.now()}`;
-      setUsers((prev) => [{ id, ...form } as any, ...prev]);
+      const newUser: any = {
+        id,
+        name: form.name,
+        email: form.email,
+        role: form.role,
+        course: form.course || null,
+      };
+      setUsers((prev) => [newUser, ...prev]);
       alert('User created successfully!');
     }
 
@@ -90,13 +101,13 @@ export default function Users() {
   };
 
   const deleteUser = (id: string) => {
-    if (!confirm('Delete this user? This action cannot be undone.')) return;
+    if (!id || !confirm('Delete this user? This action cannot be undone.')) return;
     setUsers((prev) => prev.filter((u) => u.id !== id));
     alert('User deleted');
   };
 
   const bulkDelete = () => {
-    if (selectedUsers.length === 0) {
+    if (!selectedUsers || selectedUsers.length === 0) {
       alert('Please select users to delete');
       return;
     }
@@ -107,7 +118,7 @@ export default function Users() {
   };
 
   const bulkChangeRole = (newRole: User['role']) => {
-    if (selectedUsers.length === 0) {
+    if (!selectedUsers || selectedUsers.length === 0) {
       alert('Please select users');
       return;
     }
@@ -123,24 +134,16 @@ export default function Users() {
       name: u.name,
       email: u.email,
       role: u.role,
-      department: (u as any).department || 'N/A',
+      course: u.course || 'N/A',
     }));
 
-    const headers = ['Name', 'Email', 'Role', 'Department'];
+    const headers = ['Name', 'Email', 'Role', 'Course'];
     const csv = [
       headers.join(','),
       ...data.map(d => headers.map(h => `"${String((d as any)[h.toLowerCase()] ?? '')}"`).join(',')),
     ].join('\n');
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `users-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadPdf(csv, `users-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const toggleUserSelection = (userId: string) => {
@@ -245,7 +248,7 @@ export default function Users() {
             </div>
 
             {/* Bulk Actions */}
-            {selectedUsers.length > 0 && (
+            {selectedUsers && selectedUsers.length > 0 && (
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg flex justify-between items-center">
                 <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
                   {selectedUsers.length} user{selectedUsers.length !== 1 ? 's' : ''} selected
@@ -287,7 +290,7 @@ export default function Users() {
             <DataTable
               columns={[
                 {
-                  key: 'id' as any,
+                  key: 'checkbox' as any,
                   label: '',
                   render: (_, user: User) => (
                     <Checkbox
@@ -302,7 +305,7 @@ export default function Users() {
                   key: 'role' as any,
                   label: 'Role',
                   render: (value: any) => {
-                    const role = String(value);
+                    const role = String(value || 'student');
                     let variant: any = 'secondary';
                     if (role === 'student') variant = 'default';
                     else if (role === 'teacher') variant = 'success';
@@ -315,16 +318,17 @@ export default function Users() {
                   },
                 },
                 {
-                  key: 'department' as any,
-                  label: 'Department',
+                  key: 'course' as any,
+                  label: 'Course',
                   render: (_: any, user: User) => (
                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {(user as any).department || 'N/A'}
+                      {user.course || 'N/A'}
                     </span>
                   ),
                 },
+
                 {
-                  key: 'id' as any,
+                  key: 'actions' as any,
                   label: 'Actions',
                   render: (_: any, row: User) => (
                     <div className="flex gap-2">
@@ -397,13 +401,22 @@ export default function Users() {
             </select>
           </div>
 
-          {(form.role === 'teacher' || form.role === 'dean') && (
-            <Input
-              label="Department"
-              value={form.department}
-              onChange={(e) => setForm({ ...form, department: e.target.value })}
-              placeholder="e.g., College of Information Technology"
-            />
+
+          {form.role === 'student' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Course
+              </label>
+              <select
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                value={form.course}
+                onChange={(e) => setForm({ ...form, course: e.target.value })}
+              >
+                <option value="">Select course</option>
+                <option value="BSIT">BSIT</option>
+                <option value="BSEMC">BSEMC</option>
+              </select>
+            </div>
           )}
 
           <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">

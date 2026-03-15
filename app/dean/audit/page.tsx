@@ -1,19 +1,24 @@
 'use client';
 
 import { useState } from 'react';
+import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { DataTable } from '@/components/DataTable';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { mockAuditLogs } from '@/data/mock';
+import { useFetch } from '@/hooks';
 import { formatDateTime } from '@/utils/helpers';
+import { downloadPdf } from '@/utils/helpers';
 import { Search, Download, Filter } from 'lucide-react';
 
 export default function AuditLogs() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAction, setFilterAction] = useState('all');
   const [filterUser, setFilterUser] = useState('all');
+
+  const { data: auditData, loading: auditLoading } = useFetch<any>('/audit');
+  const logs = auditData?.logs || [];
 
   const getActionColor = (action: string) => {
     switch (action) {
@@ -31,47 +36,40 @@ export default function AuditLogs() {
   };
 
   // Filter logs
-  const filteredLogs = mockAuditLogs.filter(log => {
+  const filteredLogs = logs.filter((log: any) => {
     const matchSearch = searchTerm === '' ||
-      log.user?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.user?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       log.action.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchAction = filterAction === 'all' || log.actionType === filterAction;
+    const matchAction = filterAction === 'all' || log.action === filterAction;
     const matchUser = filterUser === 'all' || log.user?.id === filterUser;
     
     return matchSearch && matchAction && matchUser;
   });
 
   const exportLogs = () => {
-    const data = filteredLogs.map(log => ({
-      timestamp: formatDateTime(log.timestamp),
-      user: log.user?.name,
-      action: log.action,
-      actionType: log.actionType,
-      resourceType: log.resourceType,
-      ipAddress: log.ipAddress,
-    }));
+    const data = filteredLogs.map((log: any) => {
+      const ts = log.timestamp ?? log.createdAt;
+      return {
+        timestamp: formatDateTime(ts),
+        user: log.user?.name,
+        action: log.action,
+      };
+    });
 
-    const headers = ['Timestamp', 'User', 'Action', 'Type', 'Resource', 'IP Address'];
+    const headers = ['Timestamp', 'User', 'Action'];
     const csv = [
       headers.join(','),
-      ...data.map(d => headers.map(h => `"${String((d as any)[h.toLowerCase().replace(/\s/g, '')] ?? '')}"`).join(',')),
+      ...data.map((d: any) => headers.map(h => `"${String((d as any)[h.toLowerCase().replace(/\s/g, '')] ?? '')}"`).join(',')),
     ].join('\n');
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadPdf(csv, `audit-logs-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
-  const uniqueUsers = [...new Set(mockAuditLogs.map(log => log.user?.id))].filter(Boolean);
-  const uniqueActions = [...new Set(mockAuditLogs.map(log => log.actionType))];
+  const uniqueUsers = [...new Set(logs.map((log: any) => log.user?.id))].filter(Boolean);
+  const uniqueActions = [...new Set(logs.map((log: any) => log.action))];
 
+  if (auditLoading) return <DashboardSkeleton />;
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start">
@@ -93,7 +91,7 @@ export default function AuditLogs() {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Total Activities</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{mockAuditLogs.length}</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{logs.length}</p>
             </div>
           </CardContent>
         </Card>
@@ -102,7 +100,7 @@ export default function AuditLogs() {
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Logins</p>
               <p className="text-3xl font-bold text-blue-600">
-                {mockAuditLogs.filter(l => l.actionType === 'login').length}
+                {logs.filter((l: any) => String(l.action ?? '').toLowerCase() === 'login').length}
               </p>
             </div>
           </CardContent>
@@ -112,17 +110,7 @@ export default function AuditLogs() {
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Submissions</p>
               <p className="text-3xl font-bold text-green-600">
-                {mockAuditLogs.filter(l => l.actionType === 'submit').length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Deletions</p>
-              <p className="text-3xl font-bold text-red-600">
-                {mockAuditLogs.filter(l => l.actionType === 'delete').length}
+                {logs.filter((l: any) => String(l.action ?? '').toLowerCase() === 'submit').length}
               </p>
             </div>
           </CardContent>
@@ -153,8 +141,8 @@ export default function AuditLogs() {
                 onChange={(e) => setFilterAction(e.target.value)}
               >
                 <option value="all">All Actions</option>
-                {uniqueActions.map(action => (
-                  <option key={action} value={action}>
+                {uniqueActions.map((action: unknown) => (
+                  <option key={String(action)} value={String(action)}>
                     {String(action).toUpperCase()}
                   </option>
                 ))}
@@ -163,7 +151,7 @@ export default function AuditLogs() {
 
             {/* Results Count */}
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Showing {filteredLogs.length} of {mockAuditLogs.length} activities
+              Showing {filteredLogs.length} of {logs.length} activities
             </p>
 
             {/* Logs Table */}
@@ -172,7 +160,13 @@ export default function AuditLogs() {
                 {
                   key: 'timestamp' as any,
                   label: 'Timestamp',
-                  render: (timestamp: any) => formatDateTime(timestamp),
+                  render: (_: any, log: any) => {
+                    const ts = log.timestamp ?? log.createdAt;
+                    if (!ts) return 'N/A';
+                    const date = new Date(ts);
+                    if (isNaN(date.getTime())) return 'Invalid date';
+                    return formatDateTime(date);
+                  },
                 },
                 {
                   key: 'user' as any,
@@ -192,35 +186,9 @@ export default function AuditLogs() {
                     </span>
                   ),
                 },
-                {
-                  key: 'actionType' as any,
-                  label: 'Type',
-                  render: (type) => (
-                    <Badge variant={getActionColor(String(type))}>
-                      {String(type).toUpperCase()}
-                    </Badge>
-                  ),
-                },
-                {
-                  key: 'resourceType' as any,
-                  label: 'Resource',
-                  render: (resource: any) => (
-                    <Badge variant="outline">
-                      {String(resource).toUpperCase()}
-                    </Badge>
-                  ),
-                },
-                {
-                  key: 'ipAddress' as any,
-                  label: 'IP Address',
-                  render: (ip: any) => (
-                    <span className="text-xs font-mono text-gray-600 dark:text-gray-400">
-                      {ip}
-                    </span>
-                  ),
-                },
+
               ]}
-              data={filteredLogs.map((log) => ({ ...log, id: log.id }))}
+              data={filteredLogs.map((log: any) => ({ ...log, id: log.id }))}
             />
           </div>
         </CardContent>

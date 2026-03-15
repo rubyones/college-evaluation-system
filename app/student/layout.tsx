@@ -9,7 +9,7 @@ import { BookOpen, History, User, LogOut } from 'lucide-react';
 
 const studentNavItems = [
   { label: 'Dashboard', href: '/student/dashboard', icon: <BookOpen className="w-5 h-5" /> },
-  { label: 'Evaluations', href: '/student/evaluations', icon: <BookOpen className="w-5 h-5" />, badge: 2 },
+  { label: 'Evaluations', href: '/student/evaluations', icon: <BookOpen className="w-5 h-5" /> },
   { label: 'History', href: '/student/history', icon: <History className="w-5 h-5" /> },
   { label: 'Profile', href: '/student/profile', icon: <User className="w-5 h-5" /> },
 ];

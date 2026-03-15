@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
+import { getRoleDashboardPath } from '@/utils/helpers';
 
 export default function Home() {
   const router = useRouter();
@@ -11,7 +12,7 @@ export default function Home() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      router.push(`/${user.role}/dashboard`);
+      router.push(getRoleDashboardPath(user.role));
     } else {
       router.push('/login');
     }

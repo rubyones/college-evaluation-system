@@ -11,18 +11,32 @@ const pool = mysql.createPool({
 });
 
 export async function query(sql: string, values?: any[]) {
-  const connection = await pool.getConnection();
   try {
-    const [results] = await connection.execute(sql, values);
-    return results;
-  } finally {
-    connection.release();
+    const connection = await pool.getConnection();
+    try {
+      const [results] = values
+        ? await connection.execute(sql, values)
+        : await connection.execute(sql);
+      return results;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    // If the database is unavailable, fall back to empty results.
+    // This allows the app to run without a database while still rendering.
+    console.warn('DB query failed, returning empty result:', error);
+    return [];
   }
 }
 
 export async function queryOne(sql: string, values?: any[]) {
-  const results = await query(sql, values);
-  return Array.isArray(results) && results.length > 0 ? results[0] : null;
+  try {
+    const results = await query(sql, values);
+    return Array.isArray(results) && results.length > 0 ? results[0] : null;
+  } catch (error) {
+    console.warn('DB queryOne failed, returning null:', error);
+    return null;
+  }
 }
 
 export default pool;

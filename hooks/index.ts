@@ -46,11 +46,27 @@ export function useFetch<T>(url: string, options?: RequestInit) {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // Simulate API call with timeout
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        // In a real app, you would fetch from `url`
-        // const response = await fetch(url, options);
-        // const result = await response.json();
+        const base = process.env.NEXT_PUBLIC_API_URL || '/api';
+        
+        // get auth token from sessionStorage
+        const token = typeof window !== 'undefined' ? sessionStorage.getItem('auth_token') : null;
+        
+        // merge options with auth header
+        const fetchOptions: RequestInit = {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(options?.headers || {}),
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+        };
+        
+        const response = await fetch(base + url, fetchOptions);
+        if (!response.ok) {
+          throw new Error(`Request failed: ${response.status}`);
+        }
+        const result = await response.json();
+        if (isMounted) setData(result as T);
         setError(null);
       } catch (err) {
         if (isMounted) {

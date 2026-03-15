@@ -9,67 +9,37 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { AnimatedCounter } from '@/components/animations/AnimatedCounter';
 import { DashboardSkeleton } from '@/components/loading/Skeletons';
-import { BookOpen, AlertCircle, CheckCircle, Clock, TrendingUp, Download, FileText, Share2, BarChart3, Target } from 'lucide-react';
+import { BookOpen, AlertCircle, CheckCircle, Clock, Download, FileText, Share2, BarChart3, Target } from 'lucide-react';
 import Link from 'next/link';
-import { mockPendingEvaluations, mockCourses, mockEvaluationPeriod, mockEvaluationResponses } from '@/data/mock';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-
-interface EvaluationProgress {
-  week: string;
-  completed: number;
-  pending: number;
-}
-
-const evaluationProgressData: EvaluationProgress[] = [
-  { week: 'Week 1', completed: 2, pending: 5 },
-  { week: 'Week 2', completed: 4, pending: 3 },
-  { week: 'Week 3', completed: 6, pending: 1 },
-  { week: 'Week 4', completed: 7, pending: 0 },
-];
-
-const COLORS = ['#10B981', '#F59E0B', '#EF4444'];
+import { useFetch } from '@/hooks';
+import { downloadPdf } from '@/utils/helpers';
 
 export default function StudentDashboard() {
   const router = useRouter();
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: evalData, loading: evalLoading } = useFetch<any>('/evaluations');
+  const { data: coursesData, loading: coursesLoading } = useFetch<any>('/courses');
+  const { data: periodData, loading: periodLoading } = useFetch<any>('/analytics');
 
-  useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
+  const isLoading = evalLoading || coursesLoading || periodLoading;
+
+  // once data returns we can compute derived quantities
+
 
   const downloadEvaluationReport = () => {
     try {
-      const data = {
-        student: user?.name,
-        generatedAt: new Date().toISOString(),
-        summary: {
-          totalCourses: mockCourses.length,
-          completedEvaluations: mockCourses.length - mockPendingEvaluations.length,
-          pendingEvaluations: mockPendingEvaluations.length,
-          completionPercentage: mockEvaluationPeriod?.completionPercentage || 0,
-        },
-        courses: mockCourses.map(c => ({
-          code: c.code,
-          name: c.name,
-          instructor: c.instructor?.name,
-          status: mockPendingEvaluations.some(p => p.courseId === c.id) ? 'Pending' : 'Completed',
-        })),
-      };
+      const courses = coursesData?.courses || [];
+      const pending = evalData?.evaluations?.filter((e:any)=>e.status==='pending') || [];
 
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `evaluation-status-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      alert('Evaluation report downloaded successfully!');
+      const rows = courses.map(c => ({
+        code: c.course_code || c.code,
+        name: c.course_name || c.name,
+        instructor: c.teacher_name || c.instructor?.name || '',
+        status: pending.some((p:any)=>p.course_id === c.id || p.courseId === c.id) ? 'Pending' : 'Completed',
+      }));
+      const header = ['code','name','instructor','status'];
+      const csv = [header.join(','), ...rows.map(r=>header.map(h=>`"${String((r as any)[h]||'')}"`).join(','))].join('\n');
+      downloadPdf(csv, `evaluation-status-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (e) {
       alert('Failed to download report');
     }
@@ -85,11 +55,11 @@ export default function StudentDashboard() {
 
   if (isLoading) return <DashboardSkeleton />;
 
-  const pendingCount = mockPendingEvaluations.length;
-  const completedCount = mockCourses.length - pendingCount;
-  const completionRate = mockEvaluationPeriod?.completionPercentage ?? 0;
-  const enrolledCount = mockCourses.length;
-  const deadline = mockEvaluationPeriod?.endDate ? new Date(mockEvaluationPeriod.endDate) : null;
+  const pendingCount = evalData?.evaluations?.filter((e:any)=>e.status!=='submitted' && e.status!=='locked').length || 0;
+  const enrolledCount = coursesData?.courses?.length || 0;
+  const completedCount = enrolledCount - pendingCount;
+  const completionRate = enrolledCount > 0 ? Math.round((completedCount / enrolledCount) * 100) : 0;
+  const deadline = periodData?.endDate ? new Date(periodData.endDate) : null;
   const daysUntilDeadline = deadline ? Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
 
   return (
@@ -157,27 +127,6 @@ export default function StudentDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pending Evaluations */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Evaluation Progress Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>📊 Evaluation Progress</CardTitle>
-              <CardDescription>Your completion progress over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={evaluationProgressData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="week" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="completed" fill="#10B981" name="Completed" />
-                  <Bar dataKey="pending" fill="#EF4444" name="Pending" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
           {/* Pending Evaluations */}
           <Card>
             <CardHeader>
@@ -185,15 +134,27 @@ export default function StudentDashboard() {
               <CardDescription>Complete these evaluations before the deadline</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mockPendingEvaluations.length === 0 ? (
+              {enrolledCount === 0 ? (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-12 h-12 mx-auto text-yellow-600 mb-4" />
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">No Courses Assigned</p>
+                  <p className="text-gray-600 dark:text-gray-400 mt-2">You don’t have any enrolled courses yet.</p>
+                </div>
+              ) : !evalData?.evaluations?.length ? (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-12 h-12 mx-auto text-blue-600 mb-4" />
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">No Evaluations Available</p>
+                  <p className="text-gray-600 dark:text-gray-400 mt-2">There are no active evaluations assigned to you at the moment.</p>
+                </div>
+              ) : pendingCount === 0 ? (
                 <div className="text-center py-12">
                   <CheckCircle className="w-12 h-12 mx-auto text-green-600 mb-4" />
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">All Complete! 🎉</p>
                   <p className="text-gray-600 dark:text-gray-400 mt-2">You've completed all evaluations for this period.</p>
                 </div>
               ) : (
-                mockPendingEvaluations.map((evaluation) => {
-                  const course = mockCourses.find(c => c.id === evaluation.courseId);
+                evalData?.evaluations?.filter((e:any)=>e.status!=='submitted' && e.status!=='locked').map((evaluation:any) => {
+                  const course = (coursesData?.courses || []).find((c:any) => c.id === evaluation.course_id || c.id === evaluation.courseId);
                   return (
                     <div
                       key={evaluation.id}
@@ -204,7 +165,7 @@ export default function StudentDashboard() {
                           {course?.name}
                         </h4>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {course?.code} • {course?.instructor?.name}
+                          {course?.code} • {course?.instructor_name || course?.instructor?.name}
                         </p>
                       </div>
                       <Link href={`/student/evaluations?courseId=${course?.id}&evalId=${evaluation.id}`}>
@@ -226,19 +187,20 @@ export default function StudentDashboard() {
               <CardDescription>All enrolled courses this semester</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {mockCourses.map((course) => {
-                const isCompleted = !mockPendingEvaluations.some(p => p.courseId === course.id);
+              {(coursesData?.courses || []).map((course:any) => {
+                const evaluation = evalData?.evaluations?.find((e:any)=>e.course_id===course.id || e.courseId===course.id);
+                const isCompleted = evaluation?.status === 'submitted' || evaluation?.status === 'locked';
                 return (
                   <div
                     key={course.id}
                     className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   >
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900 dark:text-white">{course.name}</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">{course.instructor?.name}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{course.course_name || course.name}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{course.instructor_name || course.instructor?.name}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{course.code}</Badge>
+                      <Badge variant="secondary">{course.course_code || course.code}</Badge>
                       {isCompleted ? (
                         <Badge variant="success">✓ Done</Badge>
                       ) : (
@@ -259,29 +221,19 @@ export default function StudentDashboard() {
             <CardHeader>
               <CardTitle>Status Overview</CardTitle>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: 'Completed', value: completedCount },
-                      { name: 'Pending', value: pendingCount },
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, value }) => `${name}: ${value}`}
-                  >
-                    {[COLORS[0], COLORS[2]].map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+            <CardContent className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex justify-between">
+                <span>Completed</span>
+                <span className="font-semibold text-green-600">{completedCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Pending</span>
+                <span className="font-semibold text-yellow-600">{pendingCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Completion Rate</span>
+                <span className="font-semibold text-blue-600">{completionRate}%</span>
+              </div>
             </CardContent>
           </Card>
 

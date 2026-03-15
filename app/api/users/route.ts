@@ -47,27 +47,40 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user from database
-    const user: any = await queryOne(
-      'SELECT id, name, email, role FROM users WHERE id = ?',
-      [decoded.userId]
-    );
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+    // Dean/admin gets all users; others get their own profile
+    if (decoded.role === 'dean' || decoded.role === 'admin') {
+      const users: any = await query(
+        'SELECT id, email, course, name, role FROM users WHERE is_active = TRUE ORDER BY name'
       );
-    }
+      return NextResponse.json({
+        success: true,
+        users: users || [],
+      });
+    } else {
+      // Get current user profile
+      const user: any = await queryOne(
+        'SELECT id, email, name, role FROM users WHERE id = ?',
+        [decoded.userId]
+      );
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-    });
+      if (!user) {
+        // If no database or no user exists, fall back to decoded token info
+        return NextResponse.json({
+          success: true,
+          user: {
+            id: decoded.userId,
+            name: decoded.userId,
+            email: '',
+            role: decoded.role,
+          },
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        user,
+      });
+    }
   } catch (error) {
     console.error('Get user error:', error);
     return NextResponse.json(

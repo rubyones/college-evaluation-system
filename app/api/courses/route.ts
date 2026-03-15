@@ -53,21 +53,21 @@ export async function GET(request: NextRequest) {
     if (decoded.role === 'teacher') {
       // Teachers see their own courses
       courses = await query(
-        `SELECT c.id, c.name, c.code, c.semester, c.credits, c.description,
+        `SELECT c.id, c.name, c.code, c.semester, c.description, c.section, c.teacher_id,
                 COUNT(e.id) as student_count
          FROM courses c
-         LEFT JOIN enrollments e ON c.id = e.course_id
-         WHERE c.instructor_id = ?
+         LEFT JOIN course_enrollments e ON c.id = e.course_id
+         WHERE c.teacher_id = ?
          GROUP BY c.id`,
         [decoded.userId]
       );
     } else if (decoded.role === 'student') {
       // Students see their enrolled courses
       courses = await query(
-        `SELECT c.id, c.name, c.code, c.semester, c.credits, c.description,
+        `SELECT c.id, c.name, c.code, c.semester, c.description, c.section, c.instructor_id,
                 u.name as instructor_name
          FROM courses c
-         INNER JOIN enrollments e ON c.id = e.course_id
+         INNER JOIN course_enrollments e ON c.id = e.course_id
          LEFT JOIN users u ON c.instructor_id = u.id
          WHERE e.student_id = ?
          GROUP BY c.id`,
@@ -76,12 +76,12 @@ export async function GET(request: NextRequest) {
     } else if (decoded.role === 'dean') {
       // Dean sees all courses
       courses = await query(
-        `SELECT c.id, c.name, c.code, c.semester, c.credits, c.description,
-                u.name as instructor_name,
+        `SELECT c.id, c.name, c.code, c.semester, c.description, c.section, c.teacher_id,
+                u.name as teacher_name,
                 COUNT(e.id) as student_count
          FROM courses c
-         LEFT JOIN users u ON c.instructor_id = u.id
-         LEFT JOIN enrollments e ON c.id = e.course_id
+         LEFT JOIN users u ON c.teacher_id = u.id
+         LEFT JOIN course_enrollments e ON c.id = e.course_id
          GROUP BY c.id`
       );
     }
@@ -91,21 +91,75 @@ export async function GET(request: NextRequest) {
       id: c.id,
       code: c.code,
       name: c.name,
-      instructor_name: c.instructor_name || 'Unknown',
+      teacher_id: c.teacher_id,
+      instructor_id: c.teacher_id,
+      instructor_name: c.teacher_name || c.name || 'Unknown',
       semester: c.semester,
-      credits: c.credits,
       description: c.description,
+      section: c.section || '',
       student_count: c.student_count || 0,
     }));
 
     return NextResponse.json({
       success: true,
       courses: formattedCourses,
-    });  } catch (error) {
+    });
+  } catch (error) {
     console.error('Get courses error:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: String(error) },
       { status: 500 }
     );
+  }
+}
+
+// PATCH updates to a course (assignment, section, semester, etc.)
+export async function PATCH(request: NextRequest) {
+  try {
+    const token = getAuthToken(request);
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const decoded: any = await verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    // only dean or admin may change assignments
+    if (decoded.role !== 'dean' && decoded.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { id, instructor_id, section, semester } = body;
+    if (!id) {
+      return NextResponse.json({ error: 'Course id required' }, { status: 400 });
+    }
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    if (instructor_id !== undefined) {
+      updates.push('teacher_id = ?');
+      values.push(instructor_id);
+    }
+    if (section !== undefined) {
+      updates.push('section = ?');
+      values.push(section);
+    }
+    if (semester !== undefined) {
+      updates.push('semester = ?');
+      values.push(semester);
+    }
+    if (updates.length === 0) {
+      return NextResponse.json({ success: true, message: 'No changes' });
+    }
+
+    values.push(id);
+    await query(`UPDATE courses SET ${updates.join(', ')} WHERE id = ?`, values);
+    const updated: any = await queryOne('SELECT * FROM courses WHERE id = ?', [id]);
+    return NextResponse.json({ success: true, course: updated });
+  } catch (error) {
+    console.error('Patch courses error:', error);
+    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
   }
 }

@@ -441,6 +441,20 @@ curl -H "Authorization: Bearer TOKEN" \
   http://localhost:3000/api/courses
 ```
 
+### Update Course Assignment (dean/admin only)
+```bash
+curl -X PATCH http://localhost:3000/api/courses \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": 123,
+    "instructor_id": 45,
+    "section": "A",
+    "semester": 1
+  }'
+```
+
+
 ### Test Get Evaluations
 ```bash
 curl -H "Authorization: Bearer TOKEN" \

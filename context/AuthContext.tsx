@@ -3,7 +3,13 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { UserRole, User } from '@/types';
-import { mockUsers } from '@/data/mock';
+// mock data is only used in development/demo mode
+let mockUsers: Record<string, User> = {};
+if (process.env.NODE_ENV !== 'production') {
+  // lazy load to avoid bundling in production
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  mockUsers = require('@/data/mock').mockUsers;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -36,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTokenState(savedToken);
     }
 
+    // if we have a demo user id and mock data, use it
     if (savedUserId && mockUsers[savedUserId]) {
       const currentUser = mockUsers[savedUserId];
       setUser(currentUser);
@@ -44,10 +51,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = async (userId: string, _password: string): Promise<void> => {
-    // Support both demo mode and real API
-    // If userId looks like a real ID (number), use mock data fallback
-    // Otherwise, use mock user data
+  const login = async (userId: string, password: string): Promise<void> => {
+    const useApi =
+      process.env.NODE_ENV === 'production' ||
+      process.env.NEXT_PUBLIC_USE_API === 'true';
+
+    if (useApi) {
+      // call backend auth endpoint
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || '/api'}/auth`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'email-login', email: userId, password }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+      if (data.token && data.user) {
+        setTokenState(data.token);
+        setUser(data.user as User);
+        setRoleState((data.user as any).role as UserRole);
+        localStorage.setItem('current-user-id', String((data.user as any).id));
+        setIsDemoMode(false);
+      }
+      return;
+    }
+
+    // demo/mock logic (development)
     return new Promise<void>((resolve) => {
       setTimeout(() => {
         if (mockUsers[userId]) {
@@ -113,6 +146,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokenState(newToken);
     sessionStorage.setItem('auth_token', newToken);
   };
+
+  // if token exists and we don't yet have user details, fetch from API
+  useEffect(() => {
+    if (token && !user) {
+      const fetchCurrent = async () => {
+        try {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || '/api'}/users`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (res.ok) {
+            const result = await res.json();
+            setUserFromApi(result);
+          }
+        } catch (e) {
+          console.warn('Unable to fetch current user', e);
+        }
+      };
+      fetchCurrent();
+    }
+  }, [token, user]);
 
   const value: AuthContextType = {
     user,

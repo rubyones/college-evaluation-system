@@ -2,19 +2,17 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Alert } from '@/components/ui/Alert';
 import { Checkbox } from '@/components/ui/Checkbox';
-import { Moon, Sun, ArrowLeft, Mail, User, Lock, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Mail, User, Lock, Eye, EyeOff } from 'lucide-react';
 
 function SignUpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { setToken, setUserFromApi } = useAuth();
 
@@ -26,7 +24,8 @@ function SignUpContent() {
     firstName: '',
     lastName: '',
     email: '',
-    jmcId: '',
+    jmcId: '', // 6-digit only
+    course: '', // Only for students
     password: '',
     confirmPassword: '',
   });
@@ -51,8 +50,13 @@ function SignUpContent() {
       return 'Please use your official JMC institutional email (@jmc.edu.ph)';
     }
 
-    if (!formData.jmcId.match(/^\d{8}$/)) {
-      return 'JMC ID must be 8 digits';
+
+    if (!formData.jmcId.match(/^\d{6}$/)) {
+      return 'ID must be exactly 6 digits';
+    }
+
+    if (role === 'student' && !['BSIT', 'BSEMC'].includes(formData.course)) {
+      return 'Please select a valid course (BSIT or BSEMC)';
     }
 
     if (formData.password.length < 8) {
@@ -96,6 +100,7 @@ function SignUpContent() {
           lastName: formData.lastName,
           email: formData.email,
           jmcId: formData.jmcId,
+          course: role === 'student' ? formData.course : null,
           password: formData.password,
           role: role,
         }),
@@ -137,29 +142,13 @@ function SignUpContent() {
   if (!mounted) return null;
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br ${
-      theme === 'dark'
-        ? 'from-gray-900 via-purple-900 to-gray-900'
-        : 'from-purple-50 via-indigo-50 to-purple-100'
-    } transition-colors duration-300`}>
-      {/* Dark Mode Toggle */}
-      <button
-        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        className="fixed top-6 right-6 z-50 p-3 rounded-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
-        aria-label="Toggle dark mode"
-      >
-        {theme === 'dark' ? (
-          <Sun className="w-5 h-5" />
-        ) : (
-          <Moon className="w-5 h-5" />
-        )}
-      </button>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-100">
 
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-purple-300 dark:bg-purple-900 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-72 h-72 bg-indigo-300 dark:bg-indigo-900 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-purple-400 dark:bg-purple-800 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-20 left-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-72 h-72 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
 
       {/* Main Content */}
@@ -167,7 +156,7 @@ function SignUpContent() {
         {/* Back Button */}
         <button
           onClick={() => router.push('/login')}
-          className="fixed top-6 left-6 p-3 rounded-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
+          className="fixed top-6 left-6 p-3 rounded-full bg-white text-gray-900 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
           aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -178,19 +167,19 @@ function SignUpContent() {
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-2">
             Create Account
           </h1>
-          <p className="text-gray-600 dark:text-gray-300 text-lg">
+          <p className="text-gray-600 text-lg">
             Sign up as a {role === 'student' ? 'Student' : 'Teacher'}
           </p>
         </div>
 
         {/* Sign-up Card */}
         <div className="w-full max-w-md animate-slideUp">
-          <Card className="shadow-2xl border-0 dark:bg-gray-800 dark:border dark:border-gray-700">
-            <CardHeader className="text-center border-b border-gray-200 dark:border-gray-700 pb-6">
-              <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
+          <Card className="shadow-2xl border-0">
+            <CardHeader className="text-center border-b border-gray-200 pb-6">
+              <CardTitle className="text-2xl font-bold text-gray-900">
                 Welcome to CITE-ES
               </CardTitle>
-              <CardDescription className="text-gray-600 dark:text-gray-400">
+              <CardDescription className="text-gray-600">
                 Create your institutional account
               </CardDescription>
             </CardHeader>
@@ -198,8 +187,8 @@ function SignUpContent() {
             <CardContent className="space-y-6 pt-6">
               {/* Success Message */}
               {successMessage && (
-                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
-                  <p className="text-green-800 dark:text-green-200 font-medium flex items-center gap-2">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-green-800 font-medium flex items-center gap-2">
                     <span className="text-lg">✓</span>
                     {successMessage}
                   </p>
@@ -277,23 +266,44 @@ function SignUpContent() {
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Must be an official JMC institutional email</p>
                 </div>
 
-                {/* JMC ID */}
+                {/* ID Number (6 digits) */}
                 <div>
                   <label htmlFor="jmcId" className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-2">
-                    JMC ID Number
+                    ID Number
                   </label>
                   <input
                     id="jmcId"
                     type="text"
                     value={formData.jmcId}
-                    onChange={(e) => setFormData({ ...formData, jmcId: e.target.value.replace(/\D/g, '').slice(0, 8) })}
-                    placeholder="12345678"
-                    maxLength={8}
+                    onChange={(e) => setFormData({ ...formData, jmcId: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                    placeholder="123456"
+                    maxLength={6}
                     className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 dark:focus:ring-purple-900/50 transition-all"
                     disabled={isLoading}
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">8 digits</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">6 digits</p>
                 </div>
+
+                {/* Course Selection (only for students) */}
+                {role === 'student' && (
+                  <div>
+                    <label htmlFor="course" className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-2">
+                      Course
+                    </label>
+                    <select
+                      id="course"
+                      value={formData.course}
+                      onChange={(e) => setFormData({ ...formData, course: e.target.value })}
+                      className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-200 dark:focus:ring-purple-900/50 transition-all"
+                      disabled={isLoading}
+                    >
+                      <option value="">Select course</option>
+                      <option value="BSIT">BSIT</option>
+                      <option value="BSEMC">BSEMC</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Only BSIT or BSEMC allowed</p>
+                  </div>
+                )}
 
                 {/* Password */}
                 <div>

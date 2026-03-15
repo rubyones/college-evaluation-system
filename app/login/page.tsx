@@ -6,7 +6,8 @@ import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Alert } from '@/components/ui/Alert';
-import { Moon, Sun, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Moon, Sun } from 'lucide-react';
+import { getRoleDashboardPath } from '@/utils/helpers';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -66,7 +67,7 @@ export default function LoginPage() {
       setSuccessMessage(`Welcome back, ${data.user.name}!`);
 
       setTimeout(() => {
-        router.push(`/${data.user.role}/dashboard`);
+        router.push(getRoleDashboardPath(data.user.role));
       }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
@@ -77,9 +78,7 @@ export default function LoginPage() {
 
   if (!mounted) return null;
   return (
-    <div
-      className={`min-h-screen ${theme === 'dark' ? 'bg-gray-950' : 'bg-white'} transition-colors duration-300 flex flex-col lg:flex-row`}
-    >
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-950' : 'bg-white'} transition-colors duration-300 flex flex-col lg:flex-row`}>
       {/* Dark Mode Toggle */}
       <button
         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -104,17 +103,17 @@ export default function LoginPage() {
           <div>
             <div className="flex items-center gap-6 pl-8 justify-start">
               <div className="w-28 h-28 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center overflow-hidden shadow-lg">
-                <img src="/icons/JMCLOGO.webp" alt="JMC Logo" className="w-11/12 h-11/12 object-contain" />
+                <img src="/icons/JMCLOGO-removebg-preview.png" alt="JMC Logo" className="w-11/12 h-11/12 object-contain" />
               </div>
               <div className="w-28 h-28 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center overflow-hidden shadow-lg">
-                <img src="/icons/LOGO2.jpg" alt="CITE Logo" className="w-11/12 h-11/12 object-contain" />
+                <img src="/icons/LOGO2-removebg-preview.png" alt="CITE Logo" className="w-11/12 h-11/12 object-contain" />
               </div>
             </div>
           </div>
 
           {/* Institution Name */}
           <div className="space-y-3">
-            <h1 className="text-4xl font-bold text-white leading-tight">College of Information Technology</h1>
+            <h1 className="text-4xl font-bold text-white leading-tight">College of Information Technology Education</h1>
             <p className="text-blue-100 text-lg font-medium">Evaluation & Assessment System</p>
             <div className="w-12 h-1 bg-white/40 rounded-full" />
           </div>
@@ -128,30 +127,30 @@ export default function LoginPage() {
           <div className="lg:hidden text-center mb-8">
             <div className="inline-flex items-center justify-center gap-4 mb-4">
               <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-lg flex items-center justify-center bg-white/10">
-                <img src="/icons/JMCLOGO.webp" alt="JMC Logo" className="w-11/12 h-11/12 object-contain" />
+                <img src="/icons/JMCLOGO-removebg-preview.png" alt="JMC Logo" className="w-11/12 h-11/12 object-contain" />
               </div>
               <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-lg flex items-center justify-center bg-white/10">
-                <img src="/icons/LOGO2.jpg" alt="CITE Logo" className="w-11/12 h-11/12 object-contain" />
+                <img src="/icons/LOGO2-removebg-preview.png" alt="CITE Logo" className="w-11/12 h-11/12 object-contain" />
               </div>
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">CITE</h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">College of Information Technology</p>
+            <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">College of Information Technology Education</p>
           </div>
 
           {/* Login Card */}
           <Card className="shadow-2xl border-0 dark:bg-gray-800 dark:border dark:border-gray-700">
             {/* Card Header */}
             <CardHeader className="text-center border-b border-gray-200 dark:border-gray-700 pb-6">
-              <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">Institutional Login — College of Information Technology</CardTitle>
-              <CardDescription className="text-gray-600 dark:text-gray-400 mt-2">Educational evaluation system access</CardDescription>
+              <CardTitle className="text-2xl font-bold text-gray-900">Institutional Login — College of Information Technology Education</CardTitle>
+              <CardDescription className="text-gray-600 mt-2">Educational evaluation system access</CardDescription>
             </CardHeader>
 
             {/* Card Content */}
             <CardContent className="space-y-6 pt-8">
               {/* Success Message */}
               {successMessage && (
-                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg animate-slideDown">
-                  <p className="text-green-800 dark:text-green-200 font-medium flex items-center gap-2">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg animate-slideDown">
+                  <p className="text-green-800 font-medium flex items-center gap-2">
                     <span className="text-lg">✓</span>
                     {successMessage}
                   </p>
@@ -262,10 +261,10 @@ export default function LoginPage() {
           {/* Footer Section */}
           <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-600 dark:text-gray-400 space-y-3">
             <p className="font-semibold text-gray-700 dark:text-gray-300">
-              College of Information Technology • CITE Department
+              College of Information Technology Education • CITE Department
             </p>
             <p className="pt-2">
-              © 2026 College of Information Technology. All rights reserved.
+              © 2026 College of Information Technology Education. All rights reserved.
             </p>
           </div>
         </div>

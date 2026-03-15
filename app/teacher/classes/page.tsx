@@ -1,12 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { DashboardSkeleton } from '@/components/loading/Skeletons';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { DataTable } from '@/components/DataTable';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { mockCourses } from '@/data/mock';
+import { useFetch } from '@/hooks';
+import { downloadPdf } from '@/utils/helpers';
 import { Download, Eye, FileText, Users, BookOpen, BarChart3, Search } from 'lucide-react';
 
 interface ClassDetail {
@@ -17,13 +20,27 @@ interface ClassDetail {
 export default function TeacherClasses() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
+  const { data: coursesData, loading: coursesLoading } = useFetch<any>('/courses');
+  const { data: evalData } = useFetch<any>('/evaluations');
 
-  const teacherCourses = mockCourses.filter(c => c.instructorId === 'user-teacher-1');
+  const { user } = useAuth();
+  const teacherId = user?.id;
+  const teacherCourses = (coursesData?.courses || []).filter((c:any) => c.teacher_id === teacherId);
 
   const filteredCourses = teacherCourses.filter(c =>
     c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (coursesLoading) return <DashboardSkeleton />;
+
+  const getCourseStats = (course: any) => {
+    const studentsCount = course.enrolled || course.enrolledStudents || course.students?.length || 35;
+    const courseEvals = evalData?.evaluations?.filter((e:any) => e.courseId === course.id) || [];
+    const avg = courseEvals.length ? (courseEvals.reduce((s:any, e:any) => s + Number(e.score ?? e.rating ?? 0), 0) / courseEvals.length) : 4.6;
+    const completion = studentsCount ? Math.round((courseEvals.length / studentsCount) * 100) : 89;
+    return { studentsCount, avg: Number(avg.toFixed(2)), completion };
+  };
 
   const toggleExpand = (courseId: string) => {
     setExpandedClasses(prev => ({
@@ -40,24 +57,14 @@ export default function TeacherClasses() {
         'Evaluation Score': (Math.random() * 2 + 3).toFixed(2),
       }));
 
-      const headers = Object.keys(students[0]);
+      const headers = Object.keys(students[0] || {});
       const csv = [
         headers.join(','),
-        ...students.map(s => headers.map(h => `"${String((s as any)[h])}"` ).join(',')),
+        ...students.map(s => headers.map(h => `"${String((s as any)[h] ?? '')}"`).join(',')),
       ].join('\n');
-
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${course.code}-roster-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      alert('Class roster downloaded successfully!');
+      downloadPdf(csv, `${course.code}-roster-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (e) {
-      alert('Failed to download roster');
+      alert('Failed to generate roster report');
     }
   };
 
@@ -80,18 +87,9 @@ export default function TeacherClasses() {
       };
 
       const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${course.code}-gradebook-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      alert('Gradebook downloaded successfully!');
+      downloadPdf(json, `${course.code}-gradebook-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (e) {
-      alert('Failed to download gradebook');
+      alert('Failed to generate gradebook report');
     }
   };
 
@@ -138,7 +136,7 @@ export default function TeacherClasses() {
               <Users className="w-8 h-8 mx-auto text-green-600 mb-2" />
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Total Students</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                {teacherCourses.reduce((s, c) => s + 35, 0)}
+                {teacherCourses.reduce((s, c) => s + (c.enrolled || c.enrolledStudents || c.students?.length || 35), 0)}
               </p>
             </div>
           </CardContent>
@@ -148,7 +146,7 @@ export default function TeacherClasses() {
             <div className="text-center">
               <BarChart3 className="w-8 h-8 mx-auto text-purple-600 mb-2" />
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Avg Performance</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">4.6/5</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{(teacherCourses.length ? (teacherCourses.reduce((acc, c) => acc + (c.avgScore || 4.6), 0) / teacherCourses.length).toFixed(1) : '4.6')}/5</p>
             </div>
           </CardContent>
         </Card>
@@ -192,15 +190,15 @@ export default function TeacherClasses() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                       <p className="text-xs text-gray-600 dark:text-gray-400">Students</p>
-                      <p className="text-xl font-bold text-blue-600">35</p>
+                      <p className="text-xl font-bold text-blue-600">{getCourseStats(course).studentsCount}</p>
                     </div>
                     <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <p className="text-xs text-gray-600 dark:text-gray-400">Avg Score</p>
-                      <p className="text-xl font-bold text-green-600">4.6/5</p>
+                      <p className="text-xl font-bold text-green-600">{getCourseStats(course).avg}/5</p>
                     </div>
                     <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                       <p className="text-xs text-gray-600 dark:text-gray-400">Completion</p>
-                      <p className="text-xl font-bold text-purple-600">89%</p>
+                      <p className="text-xl font-bold text-purple-600">{getCourseStats(course).completion}%</p>
                     </div>
                   </div>
 

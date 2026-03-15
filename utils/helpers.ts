@@ -93,6 +93,33 @@ export function truncateText(text: string, length: number): string {
   if (text.length <= length) return text;
   return text.substring(0, length) + '...';
 }
+export function downloadPdf(content: string, filename: string) {
+  // very rudimentary PDF: just wrap raw text; for more complex needs use a library
+  const blob = new Blob([content], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export function getRoleDashboardPath(role: string | null | undefined): string {
+  switch (role?.toString().toLowerCase()) {
+    case 'dean':
+    case 'admin':
+      return '/dean/dashboard';
+    case 'teacher':
+      return '/teacher/dashboard';
+    case 'student':
+      return '/student/dashboard';
+    default:
+      return '/login';
+  }
+}
 
 export function generateInitials(name: string): string {
   return name

@@ -83,7 +83,7 @@ export function DataTable<T extends { id: string | number }>({
               className={`border-b border-gray-200 dark:border-gray-700 ${onRowClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/50' : ''} transition-colors`}
             >
               {columns.map((column) => (
-                <td key={String(column.key)} className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                <td key={`${row.id}-${String(column.key)}`} className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                   {column.render ? column.render(row[column.key], row) : String(row[column.key])}
                 </td>
               ))}
