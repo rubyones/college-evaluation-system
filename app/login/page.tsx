@@ -142,7 +142,7 @@ export default function LoginPage() {
             {/* Card Header */}
             <CardHeader className="text-center border-b border-gray-200 dark:border-gray-700 pb-6">
               <CardTitle className="text-2xl font-bold text-gray-900">Institutional Login — College of Information Technology Education</CardTitle>
-              <CardDescription className="text-gray-600 mt-2">Educational evaluation system access</CardDescription>
+              <CardDescription className="text-gray-600 mt-2">Secure access to the official evaluation system</CardDescription>
             </CardHeader>
 
             {/* Card Content */}
