@@ -1,0 +1,288 @@
+# AGENTS.md — Multi-Agent Coordination
+
+> Shared workspace for AI agents collaborating on this project. Read before starting work, log what you change, keep each other informed.
+
+---
+
+## Registered Agents
+
+Add yourself when you start work. Update status as you go.
+
+| Agent ID | Slice | Status | Files Changed | Last Updated |
+|----------|-------|--------|---------------|--------------|
+| claude-opus | Pre-slice + Slice 1 + Slice 3 + Eval Setup Overhaul | Complete | see Communication Log | 2026-03-18 |
+| copilot | Enrollment Feature | Planning | `agents/copilot/PLAN.md`, `database/schema.sql` | 2026-03-18 |
+| antigravity | Slice 3 | Complete | `app/teacher/layout.tsx`, `app/dean/reports/page.tsx`, `app/globals.css` | 2026-03-20 |
+
+---
+
+## File Ownership
+
+Files are loosely mapped to slices. If you need to touch a file outside your slice, **log it in the Communication Log** so other agents know — don't wait for permission, just communicate.
+
+### Slice File Map
+
+| Slice | Primary Files |
+|-------|---------------|
+| Pre-slice (Data Fix) | `database/schema.sql`, `app/api/courses/route.ts`, `tools/seed.js` |
+| Slice 1 (Admin Setup) | `app/dean/evaluation-setup/page.tsx`, `app/dean/dashboard/page.tsx` |
+| Slice 2 (Student Flow) | `app/student/evaluations/page.tsx`, `app/student/dashboard/page.tsx`, `app/student/history/page.tsx` |
+| Slice 3 (Teacher Flow) | `app/teacher/dashboard/page.tsx`, `app/teacher/peer/page.tsx`, `app/teacher/results/page.tsx` |
+
+### Shared Files — Coordinate Before Changing
+
+These files are used across slices. You can edit them if needed, but **log what you changed and why** so other agents don't get surprised.
+
+- `lib/db.ts` — DB connection pool. Stable, unlikely to need changes.
+- `hooks/index.ts` — `useFetch` hook. Stable, unlikely to need changes.
+- `app/api/*` — API routes. Can be modified to fix bugs or add fields — log changes.
+- `components/ui/*` — UI component library. Add new components if needed, log them.
+- `database/schema.sql` — Schema definition. Can be updated when the live DB schema changes — keep it aligned with `cite_es.sql`.
+
+---
+
+## Communication Log
+
+Log your changes here so other agents have context. Most recent at the bottom.
+
+### claude-opus — 2026-03-17
+**To**: All
+**Topic**: Pre-slice data consolidation + Slice 1 complete
+
+**Pre-slice (Data Fix):**
+- `database/schema.sql` — Aligned `courses` table with `cite_es.sql` (INT ids, `teacher_id` instead of `instructor_id`, added `course_program`/`year_level` columns). Aligned `course_enrollments` similarly.
+- `app/api/courses/route.ts` — Fixed student query: `instructor_id` → `teacher_id`. Added `course_program`/`year_level` to dean query and response formatter. Fixed bug where course name was used as fallback for instructor name.
+- `tools/seed.js` — Added ALTER TABLE to ensure `course_program`/`year_level` columns exist, updated course INSERTs with program and year data.
+- Deleted dead files: `database/subjects.sql` (never imported), `app/api/subjects/route.ts` (queried non-existent table), `tools/import_sql.js` (referenced non-existent file).
+
+**Slice 1 (Admin Eval Setup):**
+- `app/dean/evaluation-setup/page.tsx` — Removed stray JSX block (build error). Replaced hardcoded instructor list with `useFetch('/users')` filtered to teachers. Replaced hardcoded subjects with `useFetch('/courses')` filtered by program/year/semester. Wired `saveSetup()` to POST `/api/forms` + POST `/api/evaluation_periods`. Wired `startEvaluation()` to PATCH period active + POST generate evaluations. Added `fetchApi` helper for authenticated mutations.
+- `app/dean/dashboard/page.tsx` — Fixed "Create One" button route: `/dean/academic` → `/dean/evaluation-setup`.
+
+**Gotchas for other agents:**
+- Auth token key is `sessionStorage.getItem('auth_token')`, NOT `'token'`.
+- The `courses` table uses `teacher_id` (not `instructor_id`). The API response includes both as `teacher_id` and `instructor_id` for compatibility.
+- Courses now have `course_program` (ENUM: BSIT/BSEMC) and `year_level` (INT) fields.
+
+### copilot — 2026-03-18
+**To**: All
+**Topic**: Database Tooling Update
+
+**New Features:**
+- `tools/create-admin.js` — Script to seed a default admin account (`admin@cite.edu` / `admin`).
+- `package.json` — Added `npm run db:admin` command.
+
+**Usage:**
+- Run `npm run db:admin` to create the admin user if it doesn't exist.
+- Password is stored in **plain text** (as requested).
+
+### copilot — 2026-03-17
+**To**: All
+**Topic**: Slice 1 Clean-up & Slice 2 (Student Flow) Complete
+
+**Slice 1 Fixes:**
+- `app/dean/evaluation-setup/page.tsx`: Removed misplaced "Anonymous Student Feedback" section (copy-paste error) and unused handler functions. Verified syntax.
+
+**Database Schema Update:**
+- `database/schema.sql`: Changed `evaluation_responses.criteria_id` from `INT` to `VARCHAR(36)` and removed FK constraint to `evaluation_criteria`. This was necessary because evaluation forms now use JSON-based criteria with UUIDs.
+- Ran migration script to apply this change to the local DB.
+
+**Slice 2 (Student Flow):**
+- `app/student/evaluations/page.tsx`:
+  - Implemented fetching of active evaluation period and linked form.
+  - Added dynamic form rendering based on the JSON form definition (supports criteria sections + questions).
+  - Implemented submission logic using the new schema structure.
+- `app/student/dashboard/page.tsx`:
+  - Updated to fetch live data from `/evaluations` and `/evaluation_periods`.
+  - Replaced dummy analytics with real pending/completed counts.
+  - Fixed "Start Evaluation" links.
+- `app/student/history/page.tsx`:
+  - Updated to display submitted evaluations correctly.
+  - Fixed status check (`status === 'locked'` instead of `isLocked`).
+- `app/student/profile/page.tsx`:
+  - Replaced `<Avatar>` component with a simple initial display (m1).
+
+**API Updates:**
+- `app/api/evaluation_periods/route.ts`: Allowed authenticated users (students/teachers) to fetch active periods.
+- `app/api/forms/route.ts`: Allowed authenticated users to fetch a specific form by ID.
+
+**Note:**
+- `evaluation_responses` table now expects `criteria_id` as a string (UUID). If any other part of the system tries to insert INT, it will work (as string), but be aware of the type change.
+
+### claude-opus — 2026-03-18
+**To**: All
+**Topic**: Slice 3 (Teacher Feedback & Peer Flow) Complete
+
+**API Changes:**
+- `app/api/evaluations/route.ts` — Added `role=evaluatee` query param support for non-dean users. When `?role=evaluatee` is passed, returns evaluations where the user is the evaluatee (received evaluations). Also added `evaluator_id`, `submitted_at`, `created_at`, `evaluatee_department` to the SELECT.
+
+**Slice 3 (Teacher Flow):**
+- `app/teacher/dashboard/page.tsx` — Added anonymous student feedback card fetching from `/api/comments?entity_type=evaluation&entity_id={teacherId}`. Added received evaluations fetch via `/api/evaluations?role=evaluatee` for accurate stats (overall rating, satisfaction distribution). Added quick action links to Peer Evaluation and Results pages.
+- `app/teacher/peer/page.tsx` — Added `evaluateeId` to PeerEvaluation interface and mapping. On successful peer evaluation submission, now also POSTs an anonymous comment to `/api/comments` for the evaluatee's feedback dashboard.
+- `app/student/evaluations/page.tsx` — Added anonymous comment POST to `/api/comments` on successful student evaluation submission, so teachers receive feedback on their dashboard. Added `evaluatee_id` to Evaluation interface.
+
+**Gotchas for other agents:**
+- Teacher dashboard now fetches TWO additional endpoints on mount: `/api/comments` and `/api/evaluations?role=evaluatee`.
+- Anonymous feedback flows: student submits eval → comment POSTed to `/api/comments` with `entity_type='evaluation'`, `entity_id=teacherId`. Same for peer evaluations.
+- The evaluations API now supports `?role=evaluatee` to return evaluations where the user is being evaluated (useful for viewing received scores).
+
+### claude-opus — 2026-03-18 (Eval Setup Overhaul)
+**To**: All
+**Topic**: Evaluation Setup overhaul + new Evaluation Forms page
+
+**Schema:**
+- `database/schema.sql` — Added `draft` to `evaluation_periods.status` enum. Added `academic_year`, `semester`, `assignments_json` columns.
+
+**API:**
+- `app/api/evaluation_periods/route.ts` — POST now accepts and stores `academic_year`, `semester`, `assignments_json` fields for draft persistence.
+
+**New Page:**
+- `app/dean/forms/page.tsx` — Full Evaluation Forms CRUD page. List view with edit/delete, editor with inline criteria management (name, weight, questions). Validates total weight = 100%. Uses existing `/api/forms` endpoints.
+
+**Evaluation Setup Rewrite:**
+- `app/dean/evaluation-setup/page.tsx` — Major overhaul:
+  - Subjects now load from `data/curriculum.ts` instead of the courses API (dynamic by program + year + semester)
+  - Removed redundant semester dropdown in Section 2 — semester from Section 1 drives subject loading
+  - Per-subject instructor dropdown (each subject gets its own instructor) + "Assign All" bulk action
+  - Removed inline criteria section — replaced with form picker (dropdown of saved forms from `/api/forms`)
+  - Read-only form preview when a form is selected
+  - Semi-automatic evaluation name: `{prefix} — {AY} {Semester} ({date range})`
+  - Draft management: fetches existing drafts, resume/delete buttons, saves setup as draft with `assignments_json`
+  - Start Evaluation: validates all fields, auto-saves if needed, activates period, generates bulk assignments
+
+**Gotchas:**
+- `evaluation_periods` now uses `draft` status (not `upcoming`) for draft saves. The ENUM was updated in schema.sql but the live DB may need `ALTER TABLE evaluation_periods MODIFY COLUMN status ENUM('draft','upcoming','active','closed') DEFAULT 'upcoming';`.
+- `assignments_json` stores `{program, yearLevel, section, assignments: {subjectCode: instructorId}}` as LONGTEXT JSON.
+
+### gpt-5.1 — 2026-03-18
+**To**: All
+**Topic**: Teacher portal placeholder cleanup
+
+- `app/teacher/classes/page.tsx` — Removed hardcoded sample stats, schedule, roster, and fake downloads. Kept layout but now only uses live course data where available (student counts) and neutral placeholders for future analytics.
+- `app/teacher/dashboard/page.tsx` — Removed fallback teaching-load estimate; total students now derive only from real course enrollment fields.
+- `app/teacher/results/page.tsx` — Removed hardcoded per-course student fallback (`35`); totals now use only real enrollment data.
+
+### copilot — 2026-03-18
+**To**: All
+**Topic**: Student Self-Enrollment Feature Planning
+
+**Plan**:
+- **Objective**: Allow students to select Year Level and Section to auto-enroll in block subjects.
+- **Schema**: Added `year_level` (INT) and `section` (VARCHAR) to `users` table.
+- **Next Steps**: Implement API for profile update + auto-enrollment logic. Update Student Profile UI.
+- **Note**: "Irregular" students will initially use this to set their primary block. Future iterations may allow granular subject selection.
+
+### antigravity — 2026-03-20
+**To**: All
+**Topic**: Removed AI Coach Feature
+
+- `app/teacher/layout.tsx`: Removed the AI Coach navigation tab.
+- `app/teacher/ai-coach/`: Deleted the directory and the feature entirely as requested by the user.
+
+### antigravity — 2026-03-20
+**To**: All
+**Topic**: Dean Dashboard Cleanups
+
+- `app/dean/reports/page.tsx`: Converted report downloads from a faux PDF envelope to true native CSV files by implementing `generateCSVReport`, saving as `.csv`.
+- `app/dean/reports/page.tsx`: Removed the "Compliance Report", "Criteria Analysis", and "Custom Report" sections and logic from the view.
+- `app/dean/reports/page.tsx`: Removed the unused date picker filter component.
+- `app/dean/audit/page.tsx`: Removed the "Export Logs" button and its unneeded file generation handler function.
+- `app/teacher/dashboard/page.tsx`: Removed the "Download CSV" button and its report export logic.
+- `app/teacher/peer/page.tsx`: Removed the "Export History" button and its respective csv download logic.
+- `app/teacher/results/page.tsx`: Removed the "Export & Download Results" section and its `downloadReport` handler.
+
+### antigravity — 2026-03-20
+**To**: All
+**Topic**: Theme Application
+
+- `app/globals.css`: Updated the core system background (`body`) to use the global pastel purple-to-white gradient theme (`bg-gradient-to-r from-[#e4c4f9] to-[#fcfaff]`) as requested across all pages. Includes a corresponding dark mode aesthetic (`dark:from-[#2d1b42] dark:to-[#110a1a]`).
+
+---
+
+## Coding Standards
+
+Guidelines — not rigid rules. Use judgment and log deviations.
+
+### API Usage
+- Use `useFetch` from `@/hooks` for GET requests (auto-attaches JWT)
+- For POST/PATCH/DELETE, use `fetch()` with the token from `sessionStorage.getItem('auth_token')`
+- API base URL pattern: `useFetch` prepends `/api` automatically, so pass paths like `'/users'` not `'/api/users'`
+
+### Authentication Pattern
+```typescript
+// Standard fetch for mutations
+const base = process.env.NEXT_PUBLIC_API_URL || '/api';
+const token = sessionStorage.getItem('auth_token');
+const res = await fetch(`${base}/endpoint`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  },
+  body: JSON.stringify(payload),
+});
+const data = await res.json();
+if (!data.success) throw new Error(data.error);
+```
+
+### Database
+- All DB access goes through API routes, never directly from page components
+- `cite_es.sql` is the source of truth for table definitions — keep `schema.sql` aligned with it
+
+### Components
+- Reuse existing components from `components/ui/` (Button, Card, Input, Select, Modal, Alert, Badge)
+- If you need a new component, create it in `components/` and log it here
+
+### Types
+- Define page-specific types in the page file itself (existing pattern)
+- If a type is shared across slices, create it in `types/` and log it here
+
+### Error Handling
+- Show user-facing errors via the `<Alert>` component
+- API errors: catch and display `error.message` or the API response `error` field
+- Don't swallow errors silently
+
+---
+
+## Key Data Relationships
+
+```
+evaluation_periods (admin creates)
+  └─ form_id → evaluation_forms (criteria JSON)
+
+evaluation_forms.criteria → JSON array of { name, weight, questions[] }
+
+evaluations (generated on "Start Evaluation")
+  ├─ evaluator_id → users.id (student/teacher doing the eval)
+  ├─ evaluatee_id → users.id (teacher being evaluated)
+  ├─ course_id → courses.id
+  └─ evaluation_type: 'teacher' | 'peer' | 'dean'
+
+courses (aligned with cite_es.sql)
+  ├─ teacher_id → users.id
+  ├─ course_program: ENUM('BSIT','BSEMC')
+  └─ year_level: INT
+
+evaluation_responses
+  ├─ evaluation_id → evaluations.id
+  └─ criteria_id → evaluation_criteria.id
+
+comments (anonymous feedback)
+  ├─ entity_type: 'evaluation'
+  ├─ entity_id: evaluatee's user ID
+  └─ author_id: hidden from display (anonymity)
+```
+
+---
+
+## Handoff Checklist
+
+When your slice is done, update your status in Registered Agents and note:
+
+```
+### [AGENT_ID] — Handoff
+- [ ] Build passes (`npx next build`)
+- [ ] Tested in browser (describe what you tested)
+- [ ] No console errors
+- [ ] Logged all changes in Communication Log
+```
