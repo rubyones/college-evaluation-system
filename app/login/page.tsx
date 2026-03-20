@@ -253,7 +253,7 @@ export default function LoginPage() {
                 onClick={() => router.push('/signup?role=teacher')}
                 className="py-2.5 px-3 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-medium text-sm shadow-md hover:shadow-lg transition-all duration-200"
               >
-                Faculty Signup
+                Teacher Signup
               </button>
             </div>
           </div>
