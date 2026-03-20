@@ -840,7 +840,7 @@ export default function EvaluationSetupPage() {
                   {/* Group Header */}
                   <div
                     className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 cursor-pointer"
-                    onClick={() => toggleGroupCollapse(group.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') { (toggleGroupCollapse(group.id))(); } }}
+                    onClick={() => toggleGroupCollapse(group.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') { toggleGroupCollapse(group.id); } }}
                   >
                     <div className="flex items-center gap-3">
                       {group.collapsed

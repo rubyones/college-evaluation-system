@@ -216,7 +216,7 @@ export default function StudentProfile() {
             <>
               <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <div>
-                  <label className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Full Name</label>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Full Name</div>
                   <Input
                     value={profileData.fullName}
                     onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
@@ -224,7 +224,7 @@ export default function StudentProfile() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Email</label>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Email</div>
                   <Input
                     value={profileData.email}
                     disabled
@@ -269,14 +269,14 @@ export default function StudentProfile() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Program</label>
+              <div className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Program</div>
               <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-900 dark:text-white font-medium">
                 {programLabel}
               </div>
               <p className="text-xs text-gray-500 mt-1">Set by administrator</p>
             </div>
             <div>
-              <label className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Year Level</label>
+              <div className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Year Level</div>
               <select
                 value={academicData.yearLevel}
                 onChange={(e) => setAcademicData({ ...academicData, yearLevel: Number(e.target.value) })}
@@ -289,7 +289,7 @@ export default function StudentProfile() {
               </select>
             </div>
             <div>
-              <label className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Section</label>
+              <div className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Section</div>
               <select
                 value={academicData.section}
                 onChange={(e) => setAcademicData({ ...academicData, section: e.target.value })}

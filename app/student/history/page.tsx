@@ -103,7 +103,7 @@ export default function StudentHistory() {
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Semester</label>
+            <div className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Semester</div>
             <select
               value={semester}
               onChange={(e) => setSemester(e.target.value)}
