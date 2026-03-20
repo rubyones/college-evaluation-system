@@ -188,10 +188,10 @@ function SignUpContent() {
         <div className="w-full max-w-md animate-slideUp">
           <Card className="shadow-2xl border-0">
             <CardHeader className="text-center border-b border-gray-200 pb-6">
-              <CardTitle className="text-2xl font-bold text-gray-900">
-                Welcome to CITE-ES
+              <CardTitle className="text-2xl font-bold text-gray-900 leading-tight">
+                Welcome to College of Information Technology Education Evaluation System
               </CardTitle>
-              <CardDescription className="text-gray-600">
+              <CardDescription className="text-gray-600 mt-2">
                 Create your institutional account
               </CardDescription>
             </CardHeader>
