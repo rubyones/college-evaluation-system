@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, year_level, section } = body;
+    const { name, year_level, section, course, password } = body;
 
     // Get current user from database
     const user: any = await queryOne(
@@ -111,6 +111,8 @@ export async function PATCH(request: NextRequest) {
     if (name !== undefined) { updates.push('name = ?'); params.push(name); }
     if (year_level !== undefined) { updates.push('year_level = ?'); params.push(year_level); }
     if (section !== undefined) { updates.push('section = ?'); params.push(section); }
+    if (course !== undefined) { updates.push('course = ?'); params.push(course); }
+    if (password !== undefined && password.trim() !== '') { updates.push('password = ?'); params.push(password); }
 
     if (updates.length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });

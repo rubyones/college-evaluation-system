@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
 import { Mail, Calendar, Save, Lock, Bell, Shield, Download, CheckCircle, BookOpen } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
 
 const YEAR_LEVELS = [
   { value: 1, label: '1st Year' },
@@ -37,7 +38,13 @@ export default function StudentProfile() {
   const [profileData, setProfileData] = useState({
     fullName: '',
     email: '',
+    course: '',
   });
+
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordData, setPasswordData] = useState({ new: '', confirm: '' });
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
 
   const [academicData, setAcademicData] = useState({
     yearLevel: 0 as number,
@@ -50,6 +57,7 @@ export default function StudentProfile() {
       setProfileData({
         fullName: user.name || '',
         email: user.email || '',
+        course: user.course || '',
       });
       setAcademicData({
         yearLevel: user.year_level || 0,
@@ -71,7 +79,7 @@ export default function StudentProfile() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name: profileData.fullName }),
+        body: JSON.stringify({ name: profileData.fullName, course: profileData.course }),
       });
       const data = await res.json();
       if (data.success && data.user) {
@@ -82,6 +90,29 @@ export default function StudentProfile() {
       setTimeout(() => setProfileSaved(false), 3000);
     } catch (error) {
       console.error('Failed to save profile:', error);
+    }
+  };
+
+  const handleSavePassword = async () => {
+    if (passwordData.new.length < 8) { setPasswordError('Password must be at least 8 characters'); return; }
+    if (passwordData.new !== passwordData.confirm) { setPasswordError('Passwords do not match'); return; }
+    setPasswordError('');
+
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password: passwordData.new }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPasswordSuccess('Password changed successfully!');
+        setTimeout(() => { setIsChangingPassword(false); setPasswordSuccess(''); setPasswordData({ new: '', confirm: '' }); }, 2000);
+      } else {
+        setPasswordError('Failed to change password. Please try again.');
+      }
+    } catch {
+      setPasswordError('Server error.');
     }
   };
 
@@ -206,7 +237,7 @@ export default function StudentProfile() {
                   <CheckCircle className="w-4 h-4" />
                   Edit Profile
                 </Button>
-                <Button variant="outline" onClick={() => alert('Password change coming soon')} className="gap-2">
+                <Button variant="outline" onClick={() => setIsChangingPassword(true)} className="gap-2">
                   <Lock className="w-4 h-4" />
                   Change Password
                 </Button>
@@ -223,15 +254,29 @@ export default function StudentProfile() {
                     placeholder="Your full name"
                   />
                 </div>
-                <div>
-                  <div className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Email</div>
-                  <Input
-                    value={profileData.email}
-                    disabled
-                    type="email"
-                    placeholder="Your email"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Contact your administrator to change your email.</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Program</div>
+                    <select
+                      className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={profileData.course}
+                      onChange={(e) => setProfileData({ ...profileData, course: e.target.value })}
+                    >
+                      <option value="">Select program</option>
+                      <option value="BSIT">BSIT</option>
+                      <option value="BSEMC">BSEMC</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white block mb-2">Email</div>
+                    <Input
+                      value={profileData.email}
+                      disabled
+                      type="email"
+                      placeholder="Your email"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Contact your administrator to change your email.</p>
+                  </div>
                 </div>
               </div>
 
@@ -249,6 +294,35 @@ export default function StudentProfile() {
         </CardContent>
       </Card>
 
+      {/* Change Password Modal */}
+      <Modal 
+        isOpen={isChangingPassword} 
+        onClose={() => setIsChangingPassword(false)} 
+        title="Change Password"
+      >
+        <div className="space-y-4">
+          {passwordError && <Alert variant="error" title="Error">{passwordError}</Alert>}
+          {passwordSuccess && <Alert variant="success" title="Success">{passwordSuccess}</Alert>}
+          <Input
+            label="New Password"
+            type="password"
+            value={passwordData.new}
+            onChange={(e) => setPasswordData({ ...passwordData, new: e.target.value })}
+            placeholder="••••••••"
+          />
+          <Input
+            label="Confirm Password"
+            type="password"
+            value={passwordData.confirm}
+            onChange={(e) => setPasswordData({ ...passwordData, confirm: e.target.value })}
+            placeholder="••••••••"
+          />
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="secondary" onClick={() => setIsChangingPassword(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleSavePassword}>Save Password</Button>
+          </div>
+        </div>
+      </Modal>
 
     </div>
   );
